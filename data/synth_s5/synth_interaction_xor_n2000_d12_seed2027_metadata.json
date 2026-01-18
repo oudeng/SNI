@@ -1,0 +1,57 @@
+{
+  "setting": "interaction_xor",
+  "data": {
+    "n": 2000,
+    "d": 12,
+    "cat_vars": [
+      "c0",
+      "c1"
+    ],
+    "cont_vars": [
+      "x0",
+      "x1",
+      "x2",
+      "x3",
+      "x4",
+      "x5",
+      "x6",
+      "x7",
+      "x8",
+      "x9"
+    ]
+  },
+  "generator": {
+    "description": "Interaction-only / XOR-like setting where pairwise correlations can be near zero despite strong conditional dependence.",
+    "linear_children": {
+      "x5": [
+        "x0",
+        "x1"
+      ],
+      "x6": [
+        "x2",
+        "x3"
+      ],
+      "x7": [
+        "x1",
+        "x4"
+      ]
+    },
+    "interaction_children": {
+      "x8": [
+        "x0",
+        "x2"
+      ],
+      "x9": [
+        "x1",
+        "x3"
+      ]
+    },
+    "xor_child": {
+      "c1": [
+        "c0",
+        "x1"
+      ]
+    },
+    "noise_std": 0.15
+  }
+}

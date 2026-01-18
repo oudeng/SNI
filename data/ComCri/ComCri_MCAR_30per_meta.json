@@ -1,0 +1,57 @@
+{
+  "dataset_name": "ComCri",
+  "mechanism": "MCAR",
+  "target_rate": 0.3,
+  "actual_rate_eligible": 0.29979939819458373,
+  "actual_rate_all": 0.27254490744962157,
+  "seed": 2025,
+  "n_rows": 1994,
+  "n_cols": 11,
+  "columns": [
+    "ID",
+    "IncomeLevel",
+    "UrbanType",
+    "EducationLevel",
+    "CrimeLevel",
+    "RegionCode",
+    "medIncome",
+    "PctUnemployed",
+    "PctFam2Par",
+    "PctPopUnderPov",
+    "ViolentCrimesPerPop"
+  ],
+  "column_types": {
+    "continuous": [
+      "medIncome",
+      "PctUnemployed",
+      "PctFam2Par",
+      "PctPopUnderPov",
+      "ViolentCrimesPerPop"
+    ],
+    "categorical": [
+      "IncomeLevel",
+      "UrbanType",
+      "EducationLevel",
+      "CrimeLevel",
+      "RegionCode"
+    ],
+    "excluded": [
+      "ID"
+    ]
+  },
+  "tolerance": 0.01,
+  "min_missing_per_col": 1,
+  "per_column_missing_rate": {
+    "ID": 0.0,
+    "IncomeLevel": 0.2888665997993982,
+    "UrbanType": 0.2958876629889669,
+    "EducationLevel": 0.29538615847542626,
+    "CrimeLevel": 0.3039117352056169,
+    "RegionCode": 0.31093279839518556,
+    "medIncome": 0.30190571715145437,
+    "PctUnemployed": 0.283851554663992,
+    "PctFam2Par": 0.30190571715145437,
+    "PctPopUnderPov": 0.30441323971915746,
+    "ViolentCrimesPerPop": 0.31093279839518556
+  }
+}

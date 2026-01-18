@@ -1,0 +1,92 @@
+{
+  "dataset_name": "eICU",
+  "mechanism": "MAR",
+  "target_rate": 0.5,
+  "actual_rate_eligible": 0.5002447552447552,
+  "actual_rate_all": 0.4764235764235764,
+  "seed": 2025,
+  "n_rows": 1430,
+  "n_cols": 21,
+  "columns": [
+    "ID",
+    "map_mmhg",
+    "lactate_mmol_l",
+    "creatinine_mg_dl",
+    "age_years",
+    "gcs",
+    "vasopressor_dose",
+    "hours_since_admission",
+    "sbp_min",
+    "dbp_min",
+    "hr_max",
+    "resprate_max",
+    "spo2_min",
+    "hemoglobin_min",
+    "sodium_min",
+    "urine_output_min",
+    "mechanical_ventilation_std",
+    "vasopressor_use_std",
+    "age_band",
+    "gender_std",
+    "composite_risk_score"
+  ],
+  "column_types": {
+    "continuous": [
+      "map_mmhg",
+      "lactate_mmol_l",
+      "creatinine_mg_dl",
+      "age_years",
+      "gcs",
+      "vasopressor_dose",
+      "hours_since_admission",
+      "sbp_min",
+      "dbp_min",
+      "hr_max",
+      "resprate_max",
+      "spo2_min",
+      "hemoglobin_min",
+      "sodium_min",
+      "urine_output_min"
+    ],
+    "categorical": [
+      "mechanical_ventilation_std",
+      "vasopressor_use_std",
+      "age_band",
+      "gender_std",
+      "composite_risk_score"
+    ],
+    "excluded": [
+      "ID"
+    ]
+  },
+  "tolerance": 0.01,
+  "min_missing_per_col": 1,
+  "strict_mar": true,
+  "mar_driver_cols": [
+    "ID"
+  ],
+  "mar_logistic_scale": 1.0,
+  "per_column_missing_rate": {
+    "ID": 0.0,
+    "map_mmhg": 0.5041958041958042,
+    "lactate_mmol_l": 0.4958041958041958,
+    "creatinine_mg_dl": 0.5104895104895105,
+    "age_years": 0.4951048951048951,
+    "gcs": 0.486013986013986,
+    "vasopressor_dose": 0.5244755244755245,
+    "hours_since_admission": 0.5167832167832168,
+    "sbp_min": 0.48951048951048953,
+    "dbp_min": 0.5118881118881119,
+    "hr_max": 0.5020979020979021,
+    "resprate_max": 0.4958041958041958,
+    "spo2_min": 0.4881118881118881,
+    "hemoglobin_min": 0.5062937062937063,
+    "sodium_min": 0.5027972027972027,
+    "urine_output_min": 0.479020979020979,
+    "mechanical_ventilation_std": 0.4958041958041958,
+    "vasopressor_use_std": 0.493006993006993,
+    "age_band": 0.5020979020979021,
+    "gender_std": 0.5244755244755245,
+    "composite_risk_score": 0.4811188811188811
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "dataset_name": "NHANES",
+  "mechanism": "MNAR",
+  "target_rate": 0.5,
+  "actual_rate_eligible": 0.5,
+  "actual_rate_all": 0.46153846153846156,
+  "seed": 2025,
+  "n_rows": 2274,
+  "n_cols": 13,
+  "columns": [
+    "ID",
+    "waist_circumference",
+    "systolic_bp",
+    "diastolic_bp",
+    "triglycerides",
+    "hdl_cholesterol",
+    "fasting_glucose",
+    "age",
+    "bmi",
+    "hba1c",
+    "gender_std",
+    "age_band",
+    "metabolic_score"
+  ],
+  "column_types": {
+    "continuous": [
+      "waist_circumference",
+      "systolic_bp",
+      "diastolic_bp",
+      "triglycerides",
+      "hdl_cholesterol",
+      "fasting_glucose",
+      "age",
+      "bmi",
+      "hba1c",
+      "metabolic_score"
+    ],
+    "categorical": [
+      "gender_std",
+      "age_band"
+    ],
+    "excluded": [
+      "ID"
+    ]
+  },
+  "tolerance": 0.01,
+  "min_missing_per_col": 1,
+  "mnar_params": {},
+  "per_column_missing_rate": {
+    "ID": 0.0,
+    "waist_circumference": 0.5070360598065083,
+    "systolic_bp": 0.5052770448548812,
+    "diastolic_bp": 0.5109938434476693,
+    "triglycerides": 0.49428320140721194,
+    "hdl_cholesterol": 0.49912049252418644,
+    "fasting_glucose": 0.4938434476693052,
+    "age": 0.490325417766051,
+    "bmi": 0.4969217238346526,
+    "hba1c": 0.4744942832014072,
+    "gender_std": 0.5461741424802111,
+    "age_band": 0.5430958663148637,
+    "metabolic_score": 0.4384344766930519
+  }
+}

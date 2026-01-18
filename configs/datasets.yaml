@@ -1,0 +1,209 @@
+default_hyperparams:
+  alpha0: 1.0
+  gamma: 0.95
+  max_iters: 3
+  tol: 0.0001
+  use_stat_refine: true
+  mask_fraction: 0.1
+  hidden_dims: 256,128,64
+  emb_dim: 128
+  num_heads: 16
+  lr: 0.0002
+  epochs: 200
+  batch_size: 64
+train_seeds:
+- 1
+- 2
+- 3
+- 5
+- 8
+missingness:
+  mechanisms:
+  - MCAR
+  - MAR
+  - MNAR
+  rates:
+  - '0.1'
+  - '0.3'
+  - '0.5'
+  generator_seed: 2025
+  rate_tag_map:
+    '0.1': 10per
+    '0.3': 30per
+    '0.5': 50per
+datasets:
+  AutoMPG:
+    complete_path: data/AutoMPG_complete.csv
+    missing_dir: data/AutoMPG
+    categorical_vars:
+    - model_year
+    - origin
+    continuous_vars:
+    - cylinders
+    - displacement
+    - horsepower
+    - weight
+    - acceleration
+    - mpg
+    patterns:
+      MCAR:
+        '0.1': data/AutoMPG/AutoMPG_MCAR_10per.csv
+        '0.3': data/AutoMPG/AutoMPG_MCAR_30per.csv
+        '0.5': data/AutoMPG/AutoMPG_MCAR_50per.csv
+      MAR:
+        '0.1': data/AutoMPG/AutoMPG_MAR_10per.csv
+        '0.3': data/AutoMPG/AutoMPG_MAR_30per.csv
+        '0.5': data/AutoMPG/AutoMPG_MAR_50per.csv
+      MNAR:
+        '0.1': data/AutoMPG/AutoMPG_MNAR_10per.csv
+        '0.3': data/AutoMPG/AutoMPG_MNAR_30per.csv
+        '0.5': data/AutoMPG/AutoMPG_MNAR_50per.csv
+  ComCri:
+    complete_path: data/ComCri_complete.csv
+    missing_dir: data/ComCri
+    categorical_vars:
+    - IncomeLevel
+    - UrbanType
+    - EducationLevel
+    - CrimeLevel
+    - RegionCode
+    continuous_vars:
+    - medIncome
+    - PctUnemployed
+    - PctFam2Par
+    - PctPopUnderPov
+    - ViolentCrimesPerPop
+    patterns:
+      MCAR:
+        '0.1': data/ComCri/ComCri_MCAR_10per.csv
+        '0.3': data/ComCri/ComCri_MCAR_30per.csv
+        '0.5': data/ComCri/ComCri_MCAR_50per.csv
+      MAR:
+        '0.1': data/ComCri/ComCri_MAR_10per.csv
+        '0.3': data/ComCri/ComCri_MAR_30per.csv
+        '0.5': data/ComCri/ComCri_MAR_50per.csv
+      MNAR:
+        '0.1': data/ComCri/ComCri_MNAR_10per.csv
+        '0.3': data/ComCri/ComCri_MNAR_30per.csv
+        '0.5': data/ComCri/ComCri_MNAR_50per.csv
+  Concrete:
+    complete_path: data/Concrete_complete.csv
+    missing_dir: data/Concrete
+    categorical_vars: []
+    continuous_vars:
+    - Cement
+    - BlastFurnaceSlag
+    - FlyAsh
+    - Water
+    - Superplasticizer
+    - CoarseAggregate
+    - FineAggregate
+    - Duration
+    - 'ConcreteCS '
+    patterns:
+      MCAR:
+        '0.1': data/Concrete/Concrete_MCAR_10per.csv
+        '0.3': data/Concrete/Concrete_MCAR_30per.csv
+        '0.5': data/Concrete/Concrete_MCAR_50per.csv
+      MAR:
+        '0.1': data/Concrete/Concrete_MAR_10per.csv
+        '0.3': data/Concrete/Concrete_MAR_30per.csv
+        '0.5': data/Concrete/Concrete_MAR_50per.csv
+      MNAR:
+        '0.1': data/Concrete/Concrete_MNAR_10per.csv
+        '0.3': data/Concrete/Concrete_MNAR_30per.csv
+        '0.5': data/Concrete/Concrete_MNAR_50per.csv
+  eICU:
+    complete_path: data/eICU_complete.csv
+    missing_dir: data/eICU
+    categorical_vars:
+    - mechanical_ventilation_std
+    - vasopressor_use_std
+    - age_band
+    - gender_std
+    - composite_risk_score
+    continuous_vars:
+    - map_mmhg
+    - lactate_mmol_l
+    - creatinine_mg_dl
+    - age_years
+    - gcs
+    - vasopressor_dose
+    - hours_since_admission
+    - sbp_min
+    - dbp_min
+    - hr_max
+    - resprate_max
+    - spo2_min
+    - hemoglobin_min
+    - sodium_min
+    - urine_output_min
+    patterns:
+      MCAR:
+        '0.1': data/eICU/eICU_MCAR_10per.csv
+        '0.3': data/eICU/eICU_MCAR_30per.csv
+        '0.5': data/eICU/eICU_MCAR_50per.csv
+      MAR:
+        '0.1': data/eICU/eICU_MAR_10per.csv
+        '0.3': data/eICU/eICU_MAR_30per.csv
+        '0.5': data/eICU/eICU_MAR_50per.csv
+      MNAR:
+        '0.1': data/eICU/eICU_MNAR_10per.csv
+        '0.3': data/eICU/eICU_MNAR_30per.csv
+        '0.5': data/eICU/eICU_MNAR_50per.csv
+  MIMIC:
+    complete_path: data/MIMIC_complete.csv
+    missing_dir: data/MIMIC
+    categorical_vars:
+    - SpO2
+    - ALARM
+    continuous_vars:
+    - RESP
+    - ABP
+    - SBP
+    - DBP
+    - HR
+    - PULSE
+    patterns:
+      MCAR:
+        '0.1': data/MIMIC/MIMIC_MCAR_10per.csv
+        '0.3': data/MIMIC/MIMIC_MCAR_30per.csv
+        '0.5': data/MIMIC/MIMIC_MCAR_50per.csv
+      MAR:
+        '0.1': data/MIMIC/MIMIC_MAR_10per.csv
+        '0.3': data/MIMIC/MIMIC_MAR_30per.csv
+        '0.5': data/MIMIC/MIMIC_MAR_50per.csv
+      MNAR:
+        '0.1': data/MIMIC/MIMIC_MNAR_10per.csv
+        '0.3': data/MIMIC/MIMIC_MNAR_30per.csv
+        '0.5': data/MIMIC/MIMIC_MNAR_50per.csv
+  NHANES:
+    complete_path: data/NHANES_complete.csv
+    missing_dir: data/NHANES
+    categorical_vars:
+    - gender_std
+    - age_band
+    continuous_vars:
+    - waist_circumference
+    - systolic_bp
+    - diastolic_bp
+    - triglycerides
+    - hdl_cholesterol
+    - fasting_glucose
+    - age
+    - bmi
+    - hba1c
+    - metabolic_score
+    patterns:
+      MCAR:
+        '0.1': data/NHANES/NHANES_MCAR_10per.csv
+        '0.3': data/NHANES/NHANES_MCAR_30per.csv
+        '0.5': data/NHANES/NHANES_MCAR_50per.csv
+      MAR:
+        '0.1': data/NHANES/NHANES_MAR_10per.csv
+        '0.3': data/NHANES/NHANES_MAR_30per.csv
+        '0.5': data/NHANES/NHANES_MAR_50per.csv
+      MNAR:
+        '0.1': data/NHANES/NHANES_MNAR_10per.csv
+        '0.3': data/NHANES/NHANES_MNAR_30per.csv
+        '0.5': data/NHANES/NHANES_MNAR_50per.csv

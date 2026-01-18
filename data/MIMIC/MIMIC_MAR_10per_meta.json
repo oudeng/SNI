@@ -1,0 +1,56 @@
+{
+  "dataset_name": "MIMIC",
+  "mechanism": "MAR",
+  "target_rate": 0.1,
+  "actual_rate_eligible": 0.10136452241715399,
+  "actual_rate_all": 0.09010179770413689,
+  "seed": 2025,
+  "n_rows": 2052,
+  "n_cols": 9,
+  "columns": [
+    "ID",
+    "RESP",
+    "ABP",
+    "SBP",
+    "DBP",
+    "SpO2",
+    "HR",
+    "PULSE",
+    "ALARM"
+  ],
+  "column_types": {
+    "continuous": [
+      "RESP",
+      "ABP",
+      "SBP",
+      "DBP",
+      "HR",
+      "PULSE"
+    ],
+    "categorical": [
+      "SpO2",
+      "ALARM"
+    ],
+    "excluded": [
+      "ID"
+    ]
+  },
+  "tolerance": 0.01,
+  "min_missing_per_col": 1,
+  "strict_mar": true,
+  "mar_driver_cols": [
+    "ID"
+  ],
+  "mar_logistic_scale": 1.0,
+  "per_column_missing_rate": {
+    "ID": 0.0,
+    "RESP": 0.10769980506822611,
+    "ABP": 0.09892787524366471,
+    "SBP": 0.10721247563352826,
+    "DBP": 0.09844054580896686,
+    "SpO2": 0.09015594541910331,
+    "HR": 0.09210526315789473,
+    "PULSE": 0.11647173489278752,
+    "ALARM": 0.09990253411306042
+  }
+}

@@ -1,6 +1,6 @@
 # SNI: Structure-Aware Neural Imputation
 
-**Reproducibility Package for Peer Review**
+**Reproducibility Package**
 
 This repository contains the complete experimental code for the paper. It enables full reproduction of all experiments, tables, and figures presented in the manuscript.
 

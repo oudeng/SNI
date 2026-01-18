@@ -6,6 +6,8 @@ This repository contains the complete experimental code for the paper, Statistic
 
 It enables full reproduction of all experiments, tables, and figures presented in the manuscript.
 
+Statistical--Neural Interaction (SNI), an interpretable mixed-type imputation framework that couples correlation-derived statistical priors with neural feature attention through a Controllable-Prior Feature Attention (CPFA) module. CPFA learns head-wise prior-strength coefficients $\{\lambda_h\}$ that softly regularize attention toward the prior while allowing data-driven deviations when nonlinear patterns appear to be present in the data. Beyond imputation, SNI aggregates attention maps into a directed feature-dependency matrix that summarizes which variables the imputer relied on, without requiring post-hoc explainers.
+
 ---
 
 ## Table of Contents

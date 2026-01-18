@@ -1,8 +1,10 @@
-# SNI: Structure-Aware Neural Imputation
+# SNI: Statistical–Neural Interaction （SNI）
 
 **Reproducibility Package**
 
-This repository contains the complete experimental code for the paper. It enables full reproduction of all experiments, tables, and figures presented in the manuscript.
+This repository contains the complete experimental code for the paper, Statistical-Neural Interaction Networks for Interpretable Mixed-Type Data Imputation.
+
+It enables full reproduction of all experiments, tables, and figures presented in the manuscript.
 
 ---
 

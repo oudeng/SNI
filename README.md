@@ -5,7 +5,7 @@
 This repository contains the complete experimental code for the paper, Statistical-Neural Interaction Networks for Interpretable Mixed-Type Data Imputation.
 
 It enables full reproduction of all experiments, tables, and figures presented in the manuscript.
-
+![Graphical Abstract](/Graphical_Abstract/graphical_abstract.pdf)
 ---
 
 ## Table of Contents

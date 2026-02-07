@@ -194,11 +194,63 @@ python scripts/sanity_check_v2_s5.py \
 
 
 ################################################################################
-# PART 4: UTILITY COMMANDS
+# PART 4: EXT1 - INTERPRETABILITY AUDIT & DOWNSTREAM VALIDATION
 ################################################################################
 
 #-------------------------------------------------------------------------------
-# 4.1 Resume Failed Runs
+# 4.1 Exp1: Interpretability Audit Story (Leakage/Proxy Injection)
+#-------------------------------------------------------------------------------
+# Example: MIMIC, audit ALARM
+python ext1/scripts/exp1_audit_story_leakage.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars SpO2 ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --audit-target ALARM \
+  --mechanism MAR --missing-rate 0.30 \
+  --seed 2026 \
+  --outdir results_ext1/audit_mimic_alarm \
+  --run-without-leak true \
+  --use-gpu false
+
+# Key outputs:
+#   results_ext1/audit_mimic_alarm/audit_report.md
+#   results_ext1/audit_mimic_alarm/with_leak/dependency_matrix.csv
+#   results_ext1/audit_mimic_alarm/with_leak/audit_top_sources.csv
+#   results_ext1/audit_mimic_alarm/audit_comparison.csv
+
+#-------------------------------------------------------------------------------
+# 4.2 Exp2: Downstream Task Validation (Impute -> Predict)
+#-------------------------------------------------------------------------------
+# Example: NHANES, predict metabolic_score, fairness by gender_std
+python ext1/scripts/exp2_downstream_task_validation.py \
+  --input-complete data/NHANES_complete.csv \
+  --dataset-name NHANES \
+  --target-col metabolic_score \
+  --categorical-cols gender_std age_band \
+  --continuous-cols waist_circumference systolic_bp diastolic_bp triglycerides hdl_cholesterol fasting_glucose age bmi hba1c \
+  --mechanism MAR --missing-rate 0.30 \
+  --mar-driver-cols age gender_std \
+  --fairness-col gender_std \
+  --imputers SNI MissForest MeanMode MICE \
+  --seeds 1 2 3 5 8 \
+  --outdir results_ext1/downstream_nhanes \
+  --sni-use-gpu false \
+  --baseline-use-gpu false \
+  --save-missing true \
+  --save-imputed false
+
+# Key outputs:
+#   results_ext1/downstream_nhanes/metrics_per_seed.csv
+#   results_ext1/downstream_nhanes/metrics_summary.csv
+
+
+################################################################################
+# PART 5: UTILITY COMMANDS
+################################################################################
+
+#-------------------------------------------------------------------------------
+# 5.1 Resume Failed Runs
 #-------------------------------------------------------------------------------
 python scripts/run_manifest_parallel.py \
     --manifest data/manifest_sni_main.csv \
@@ -207,7 +259,7 @@ python scripts/run_manifest_parallel.py \
     --skip-existing
 
 #-------------------------------------------------------------------------------
-# 4.2 Check Progress
+# 5.2 Check Progress
 #-------------------------------------------------------------------------------
 # Count completed experiments
 find results_sni_main -name "metrics_summary.json" | wc -l
@@ -219,7 +271,7 @@ find results_sni_main -name "error.log" | wc -l
 find results_sni_main -name "error.log" -exec echo "=== {} ===" \; -exec cat {} \;
 
 #-------------------------------------------------------------------------------
-# 4.3 Verify Output Integrity
+# 5.3 Verify Output Integrity
 #-------------------------------------------------------------------------------
 python - <<'PY'
 import pandas as pd
@@ -234,7 +286,7 @@ if paths:
 PY
 
 #-------------------------------------------------------------------------------
-# 4.4 Resource Monitoring
+# 5.4 Resource Monitoring
 #-------------------------------------------------------------------------------
 # Monitor CPU
 htop
@@ -247,11 +299,11 @@ watch -n2 'echo "=== CPU ===" && top -b -n1 | head -8 && echo "=== GPU ===" && n
 
 
 ################################################################################
-# PART 5: OPTIONAL EXPERIMENTS (Extended Analysis)
+# PART 6: OPTIONAL EXPERIMENTS (Extended Analysis)
 ################################################################################
 
 #-------------------------------------------------------------------------------
-# 5.1 Missing Rate Sweep (5%, 10%, 20%, 30%, 40%, 50%)
+# 6.1 Missing Rate Sweep (5%, 10%, 20%, 30%, 40%, 50%)
 #-------------------------------------------------------------------------------
 python scripts/run_manifest_parallel.py \
     --manifest data/manifest_options/manifest_sni_rate_sweep.csv \
@@ -264,7 +316,7 @@ python scripts/aggregate_results.py \
     --outdir results_sni_rate_sweep/_summary
 
 #-------------------------------------------------------------------------------
-# 5.2 Full Baseline Comparison (All Settings)
+# 6.2 Full Baseline Comparison (All Settings)
 #-------------------------------------------------------------------------------
 python scripts/run_manifest_baselines.py \
     --manifest data/manifest_options/manifest_baselines_main_all.csv \
@@ -291,6 +343,8 @@ python scripts/aggregate_results.py \
 # Baselines MNAR          | manifest_baselines_mnar.csv    | 6-8h      | -1
 # Baselines Deep (GPU)    | manifest_baselines_deep.csv    | 8-12h     | 1
 # Sanity Check            | (synthetic)                    | 1-2h      | N/A
+# Ext1 Audit Story        | (standalone script)            | <30min    | N/A
+# Ext1 Downstream         | (standalone script)            | <1h       | N/A
 #
 # Note: Estimated times based on 32-core CPU + 1 GPU server.
 #

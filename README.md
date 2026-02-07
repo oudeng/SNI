@@ -38,6 +38,7 @@ Statistical--Neural Interaction (SNI), an interpretable mixed-type imputation fr
 | `SNI_v0_2/` | Core SNI algorithm package (importable module) |
 | `baselines/` | Baseline imputation methods (MeanMode, KNN, MICE, MissForest, GAIN, MIWAE) |
 | `scripts/` | Experiment runners, aggregation, visualization, and table generation |
+| `ext1/` | Extended experiments: interpretability audit & downstream task validation |
 | `data/` | Datasets and experiment manifests |
 | `configs/` | Configuration files |
 
@@ -118,6 +119,10 @@ python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
 │   ├── synth_generate_s5.py    # Synthetic data generator
 │   ├── sanity_check_v2_s5.py   # Sanity check experiments (Section S5)
 │   └── viz_*.py                # Visualization scripts
+├── ext1/                       # Extended experiments (Ext1)
+│   └── scripts/
+│       ├── exp1_audit_story_leakage.py         # Interpretability audit
+│       └── exp2_downstream_task_validation.py  # Downstream task validation
 ├── data/
 │   ├── *_complete.csv          # Complete datasets
 │   ├── {Dataset}/              # Missing datasets with masks
@@ -211,6 +216,41 @@ Three synthetic settings with **known ground-truth dependency structures**:
 3. Evaluate SNI vs NoPrior vs PriorOnly (correlation-based)
 
 **Key Insight**: `interaction_xor` setting specifically tests scenarios where marginal correlations are near-zero but true dependencies exist, demonstrating SNI's advantage over correlation-only methods.
+
+### 5.6 Ext1 — Interpretability Audit Story (Leakage / Proxy Injection)
+
+**Objective**: Demonstrate that the SNI dependency network can be directly used for real-data auditing — detecting field leakage or proxy dominance.
+
+**Method**:
+1. Inject a proxy column (e.g. `ALARM_LEAK = ALARM`) into a real dataset (e.g. MIMIC), keeping the proxy always observed.
+2. Run SNI and export the dependency matrix; check whether `D[ALARM, ALARM_LEAK]` exhibits single-source dominance (weight ≈ 1).
+3. Re-run SNI **without** the proxy column (same missing mask) and compare target-column Macro-F1 / Accuracy, confirming the proxy genuinely drove performance.
+
+**Actionable Outputs**:
+- `audit_report.md` — one-paragraph summary: "who dominates whom, potential leakage, performance drop after removal."
+- `audit_top_sources.csv` — Top-5 source features per target (directly usable as a supplementary table).
+- `audit_flags.csv` — automatic flags for targets where `top1_weight ≥ 0.6` (single-source dominance risk).
+
+**Script**: `ext1/scripts/exp1_audit_story_leakage.py`
+
+### 5.7 Ext1 — Downstream Task Validation (Impute → Predict)
+
+**Objective**: Verify that cell-wise imputation quality (RMSE / F1) translates to actual downstream task utility.
+
+**Method**:
+1. From a **complete** dataset, introduce missingness to **feature columns only** (target *y* is never missing).
+2. Impute features with multiple methods (SNI, MissForest, MeanMode, MICE).
+3. Train a downstream model (LogisticRegression / Ridge) on the imputed features.
+4. Compare downstream performance (Accuracy / Macro-F1 / AUC or RMSE / R²) and cross-seed stability (std).
+5. Optionally compute a simple `group_gap` (max − min across a sensitive attribute such as `gender_std`) as evidence of reduced bias.
+
+**Default Setting**: NHANES → predict `metabolic_score` (multi-class), MAR @ 30%, fairness column `gender_std`.
+
+**Outputs**:
+- `metrics_per_seed.csv` — per seed × method downstream metrics.
+- `metrics_summary.csv` — aggregated mean ± std (table-ready).
+
+**Script**: `ext1/scripts/exp2_downstream_task_validation.py`
 
 ---
 
@@ -374,6 +414,53 @@ python scripts/sanity_check_v2_s5.py \
 - `table_S21.tex`: LaTeX table for supplementary material
 - `D_*.csv`: Learned dependency matrices for inspection
 
+### Step 6: Ext1 — Interpretability Audit Story
+
+```bash
+python ext1/scripts/exp1_audit_story_leakage.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars SpO2 ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --audit-target ALARM \
+  --mechanism MAR --missing-rate 0.30 \
+  --seed 2026 \
+  --outdir results_ext1/audit_mimic_alarm \
+  --run-without-leak true \
+  --use-gpu false
+```
+
+**Outputs**:
+- `results_ext1/audit_mimic_alarm/audit_report.md` — one-paragraph audit summary
+- `results_ext1/audit_mimic_alarm/with_leak/dependency_matrix.csv` — full dependency matrix
+- `results_ext1/audit_mimic_alarm/with_leak/audit_top_sources.csv` — Top-5 sources per target
+- `results_ext1/audit_mimic_alarm/audit_comparison.csv` — with-leak vs without-leak comparison
+
+### Step 7: Ext1 — Downstream Task Validation
+
+```bash
+python ext1/scripts/exp2_downstream_task_validation.py \
+  --input-complete data/NHANES_complete.csv \
+  --dataset-name NHANES \
+  --target-col metabolic_score \
+  --categorical-cols gender_std age_band \
+  --continuous-cols waist_circumference systolic_bp diastolic_bp triglycerides hdl_cholesterol fasting_glucose age bmi hba1c \
+  --mechanism MAR --missing-rate 0.30 \
+  --mar-driver-cols age gender_std \
+  --fairness-col gender_std \
+  --imputers SNI MissForest MeanMode MICE \
+  --seeds 1 2 3 5 8 \
+  --outdir results_ext1/downstream_nhanes \
+  --sni-use-gpu false \
+  --baseline-use-gpu false \
+  --save-missing true \
+  --save-imputed false
+```
+
+**Outputs**:
+- `results_ext1/downstream_nhanes/metrics_per_seed.csv` — per seed × method downstream metrics
+- `results_ext1/downstream_nhanes/metrics_summary.csv` — aggregated mean ± std (table-ready)
+
 ---
 
 ## 8. Output Files
@@ -396,6 +483,22 @@ python scripts/sanity_check_v2_s5.py \
 | `summary_agg.csv` | Mean±std across seeds |
 | `table_*.tex` | LaTeX-formatted tables |
 | `parallel_run_meta.json` | Parallel execution metadata |
+
+### Ext1 Audit Outputs
+
+| File | Description |
+|------|-------------|
+| `audit_report.md` | One-paragraph audit summary (who dominates whom, leakage risk, performance impact) |
+| `audit_top_sources.csv` | Top-5 source features per target |
+| `audit_flags.csv` | Automatic flags for single-source dominance (`top1_weight ≥ 0.6`) |
+| `audit_comparison.csv` | Performance comparison: with-leak vs without-leak |
+
+### Ext1 Downstream Outputs
+
+| File | Description |
+|------|-------------|
+| `metrics_per_seed.csv` | Per seed × method downstream performance |
+| `metrics_summary.csv` | Aggregated mean ± std across seeds |
 
 ---
 
@@ -448,6 +551,11 @@ find results -name "error.log" -exec echo "=== {} ===" \; -exec cat {} \;
 ---
 
 ## 10. Changelog
+
+### 2026-02-04
+- ✨ Added `ext1/`: Extended experiments for reviewer response
+  - `exp1_audit_story_leakage.py`: Interpretability audit via proxy injection on real data
+  - `exp2_downstream_task_validation.py`: Downstream Impute → Predict validation with fairness gap
 
 ### 2026-01-16
 - ✨ Added `synth_generate_s5.py`: Synthetic data generator for sanity check

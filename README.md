@@ -6,7 +6,7 @@
 
 **Reproducibility Package**
 
-This repository contains the complete experimental code for the paper, Statistical-Neural Interaction Networks for Interpretable Mixed-Type Data Imputation.
+This repository contains the complete experimental code for the paper, **Statistical-Neural Interaction Networks for Interpretable Imputation of Mixed Numerical and Categorical Tabular Data**.
 
 It enables full reproduction of all experiments, tables, and figures presented in the manuscript.
 

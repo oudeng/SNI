@@ -4,7 +4,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
-
 **Reproducibility Package**
 
 This repository contains the complete experimental code for the paper, **Statistical-Neural Interaction Networks for Interpretable Imputation of Mixed Numerical and Categorical Tabular Data**.
@@ -40,6 +39,7 @@ Statistical--Neural Interaction (SNI), an interpretable mixed-type imputation fr
 | `baselines/` | Baseline imputation methods (MeanMode, KNN, MICE, MissForest, GAIN, MIWAE) |
 | `scripts/` | Experiment runners, aggregation, visualization, and table generation |
 | `ext1/` | Extended experiments: interpretability audit & downstream task validation |
+| `ext2/` | Extended experiments: per-class breakdown, SHAP comparison, significance tests, Impute→Predict |
 | `data/` | Datasets and experiment manifests |
 | `configs/` | Configuration files |
 
@@ -79,6 +79,9 @@ conda activate sni
 # Install dependencies
 pip install -r requirements.txt
 
+# (Optional) Install extra dependencies for Ext2
+pip install shap scipy xgboost
+
 # Verify installation
 python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
 ```
@@ -91,6 +94,9 @@ python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
 - `numpy>=1.21`: Numerical computing
 - `joblib`: Parallel execution
 - `matplotlib>=3.5`: Visualization
+- `shap` (optional): TreeSHAP for Ext2 Exp4
+- `scipy` (optional): Wilcoxon tests for Ext2 Exp5
+- `xgboost` (optional): XGBoost classifier for Ext2 Exp6
 
 ---
 
@@ -117,13 +123,19 @@ python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
 │   ├── run_manifest_baselines.py   # Parallel batch runner for baselines
 │   ├── aggregate_results.py    # Results aggregation (mean±std)
 │   ├── make_latex_table.py     # LaTeX table generation
-│   ├── synth_generate_s5.py    # Synthetic data generator
-│   ├── sanity_check_v2_s5.py   # Sanity check experiments (Section S5)
+│   ├── synth_generate.py       # Synthetic data generator
+│   ├── sanity_check_v2.py      # Sanity check experiments
 │   └── viz_*.py                # Visualization scripts
 ├── ext1/                       # Extended experiments (Ext1)
 │   └── scripts/
 │       ├── exp1_audit_story_leakage.py         # Interpretability audit
 │       └── exp2_downstream_task_validation.py  # Downstream task validation
+├── ext2/                       # Extended experiments (Ext2)
+│   └── scripts/
+│       ├── exp3_per_class_categorical.py       # Per-class breakdown (Table S9)
+│       ├── exp4_shap_comparison.py             # SHAP vs SNI D comparison (Table S7)
+│       ├── exp5_significance_tests.py          # Wilcoxon significance tests (Table S8)
+│       └── exp6_mimic_mortality_impute_predict.py  # MIMIC Impute→Predict (Table VI)
 ├── data/
 │   ├── *_complete.csv          # Complete datasets
 │   ├── {Dataset}/              # Missing datasets with masks
@@ -173,7 +185,7 @@ Three synthetic settings with **known ground-truth dependency structures**:
 
 ## 5. Experiment Design
 
-### 5.1 Main Experiments (Table 2-3)
+### 5.1 Main Experiments
 
 **Objective**: Compare SNI with baselines under MCAR and MAR at 30% missingness.
 
@@ -207,7 +219,7 @@ Three synthetic settings with **known ground-truth dependency structures**:
 |----------|-------------|-------------|
 | `manifest_baselines_deep.csv` | 540 | GAIN/MIWAE × 6 datasets × 3 mechanisms × 3 rates × 5 seeds |
 
-### 5.5 Sanity Check: Dependency Recovery (Section S5)
+### 5.5 Sanity Check: Dependency Recovery
 
 **Objective**: Validate that the learned dependency matrix D recovers true causal structure.
 
@@ -252,6 +264,79 @@ Three synthetic settings with **known ground-truth dependency structures**:
 - `metrics_summary.csv` — aggregated mean ± std (table-ready).
 
 **Script**: `ext1/scripts/exp2_downstream_task_validation.py`
+
+### 5.8 Ext2 — Per-Class Breakdown on Imbalanced Categorical Targets
+
+**Objective**: Report per-class Precision / Recall / F1 on masked entries for imbalanced categorical variables, revealing whether imputation collapses minority classes.
+
+**Method**:
+1. Inject missingness (default **strict MAR**, 30%) into features.
+2. Impute using selected methods (SNI, MissForest, MeanMode).
+3. Report per-class Precision / Recall / F1 on **masked entries only**.
+4. Includes robust handling for mask semantics and float/int categorical codes.
+
+**Default Setting**: MIMIC-IV ALARM column, strict MAR @ 30%.
+
+**Outputs**:
+- `perclass_metrics.csv` — per-class metrics for each method.
+- `perclass_summary.csv` — aggregated summary across seeds.
+- `collapse_flags.csv` — flags for classes that collapsed during imputation.
+
+**Script**: `ext2/scripts/exp3_per_class_categorical.py`
+
+### 5.9 Ext2 — SNI D vs SHAP on MissForest
+
+**Objective**: Compare SNI's intrinsic reliance matrix **D** with post-hoc SHAP importance from MissForest, demonstrating that SNI's built-in interpretability captures similar feature-importance signals without needing external explainers.
+
+**Method**:
+1. Run **SNI** once → save reliance matrix **D**.
+2. Run **MissForest** once → obtain imputed table.
+3. For each target (default: `ALARM`, `SBP` if present):
+   - **SNI**: report top-k features from D row.
+   - **MissForest**: fit a RandomForest surrogate and compute **TreeSHAP** on the target-masked rows.
+   - Report Spearman correlation between D and SHAP (optional).
+
+**Outputs**:
+- `table_S7_top_features.csv`.
+- `shap_importances.csv` — full SHAP importance table.
+- `spearman_d_vs_shap.csv` — Spearman rank correlation between D and SHAP.
+- `d_matrix.csv` — full dependency matrix.
+
+**Script**: `ext2/scripts/exp4_shap_comparison.py`  
+**Extra Dependency**: `pip install shap`
+
+### 5.10 Ext2 — Wilcoxon Significance Tests
+
+**Objective**: Provide statistical evidence that SNI's improvements over baselines are significant, not due to random seed variation.
+
+**Method** (two modes):
+- **across_settings** : one paired Wilcoxon signed-rank test per (metric, baseline) across all dataset×mechanism settings.
+- **per_setting** (optional): per dataset×mechanism×metric tests across seeds.
+
+**Outputs**:
+- `wilcoxon_across_settings.csv`
+- `wilcoxon_per_setting.csv` — detailed per-setting tests.
+- `wilcoxon_summary.csv` — aggregated summary.
+
+**Script**: `ext2/scripts/exp5_significance_tests.py`  
+**Extra Dependency**: `pip install scipy`
+
+### 5.11 Ext2 — MIMIC-IV Impute→Predict (Main Table VI)
+
+**Objective**: Evaluate whether imputation quality translates to downstream predictive performance on a clinically relevant task (MIMIC-IV in-hospital mortality / ALARM prediction).
+
+**Method**:
+1. Inject strict MAR missingness into **feature columns only** (label always observed).
+2. Impute with each method (SNI, MissForest, MeanMode).
+3. Train **Logistic Regression** and **XGBoost** on imputed features.
+4. Report AUROC / AUPRC / Accuracy / F1.
+
+**Outputs**:
+- `per_seed_metrics.csv` — per seed × method × model metrics.
+- `table_VI_summary.csv` — mean±std over seeds, ready for Table VI.
+
+**Script**: `ext2/scripts/exp6_mimic_mortality_impute_predict.py`  
+**Extra Dependency**: `pip install xgboost`
 
 ---
 
@@ -378,7 +463,7 @@ for dir in results_baselines_main results_baselines_mnar results_baselines_deep;
 done
 ```
 
-### Step 5: Sanity Check (Section S5)
+### Step 5: Sanity Check
 
 ```bash
 # Generate synthetic data (if not pre-generated)
@@ -460,7 +545,109 @@ python ext1/scripts/exp2_downstream_task_validation.py \
 
 **Outputs**:
 - `results_ext1/downstream_nhanes/metrics_per_seed.csv` — per seed × method downstream metrics
-- `results_ext1/downstream_nhanes/metrics_summary.csv` — aggregated mean ± std (table-ready)
+- `results_ext1/downstream_nhanes/metrics_summary.csv` — aggregated mean ± std
+
+### Step 8: Ext2 — Per-Class Breakdown
+
+```bash
+python ext2/scripts/exp3_per_class_categorical.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE SpO2 \
+  --mechanisms MAR \
+  --missing-rate 0.30 \
+  --mar-driver-cols HR SpO2 \
+  --methods SNI MissForest MeanMode \
+  --seeds 1 2 3 5 8 \
+  --outdir results_ext2/table_S9_perclass_alarm \
+  --use-gpu false
+```
+
+**Outputs**:
+- `results_ext2/table_S9_perclass_alarm/perclass_metrics.csv` — per-class metrics
+- `results_ext2/table_S9_perclass_alarm/perclass_summary.csv` — aggregated summary
+- `results_ext2/table_S9_perclass_alarm/collapse_flags.csv` — class collapse flags
+
+### Step 9: Ext2 — SHAP vs SNI D Comparison
+
+```bash
+python ext2/scripts/exp4_shap_comparison.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars ALARM SpO2 \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --mechanism MAR --missing-rate 0.30 \
+  --mar-driver-cols HR PULSE \
+  --seed 2026 \
+  --targets ALARM SBP \
+  --top-k 10 \
+  --shap-max-eval 512 \
+  --outdir results_ext2/table_S7_shap_vs_D/MIMIC \
+  --use-gpu false
+```
+
+**Outputs**:
+- `results_ext2/table_S7_shap_vs_D/MIMIC/table_top_features.csv`
+- `results_ext2/table_S7_shap_vs_D/MIMIC/shap_importances.csv` — full SHAP importances
+- `results_ext2/table_S7_shap_vs_D/MIMIC/spearman_d_vs_shap.csv` — rank correlation
+- `results_ext2/table_S7_shap_vs_D/MIMIC/d_matrix.csv` — dependency matrix
+
+### Step 10: Ext2 — Wilcoxon Significance Tests
+
+```bash
+# Recommended: across-settings tests
+python ext2/scripts/exp5_significance_tests.py \
+  --results-dir . \
+  --datasets MIMIC eICU NHANES ComCri AutoMPG Concrete \
+  --mechanisms MCAR MAR \
+  --metrics NRMSE R2 Spearman_rho Macro_F1 \
+  --reference-method SNI \
+  --baselines MissForest MIWAE \
+  --mode across_settings \
+  --alpha 0.05 \
+  --outdir results_ext2/significance
+
+# Optional: also produce per-setting tests across seeds
+python ext2/scripts/exp5_significance_tests.py \
+  --results-dir . \
+  --datasets MIMIC eICU NHANES ComCri AutoMPG Concrete \
+  --mechanisms MCAR MAR \
+  --metrics NRMSE R2 Spearman_rho Macro_F1 \
+  --reference-method SNI \
+  --baselines MissForest MIWAE \
+  --mode both \
+  --alpha 0.05 \
+  --outdir results_ext2/significance
+```
+
+**Outputs**:
+- `results_ext2/significance/wilcoxon_across_settings.csv`
+- `results_ext2/significance/wilcoxon_per_setting.csv` — per-setting tests
+- `results_ext2/significance/wilcoxon_summary.csv` — aggregated summary
+
+### Step 11: Ext2 — MIMIC-IV Impute→Predict (Table VI)
+
+```bash
+python ext2/scripts/exp6_mimic_mortality_impute_predict.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC_alarm_predict \
+  --label-col ALARM \
+  --binarize-threshold 34 \
+  --categorical-vars SpO2 \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --mechanism MAR --missing-rate 0.30 \
+  --mar-driver-cols HR PULSE \
+  --imputers SNI MissForest MeanMode \
+  --models LR XGB \
+  --seeds 1 2 3 5 8 \
+  --outdir results_ext2/table_VI_mimic_alarm \
+  --use-gpu false
+```
+
+**Outputs**:
+- `results_ext2/table_VI_mimic_alarm/per_seed_metrics.csv` — per seed × method × model
+- `results_ext2/table_VI_mimic_alarm/table_VI_summary.csv` — mean±std
 
 ---
 
@@ -500,6 +687,38 @@ python ext1/scripts/exp2_downstream_task_validation.py \
 |------|-------------|
 | `metrics_per_seed.csv` | Per seed × method downstream performance |
 | `metrics_summary.csv` | Aggregated mean ± std across seeds |
+
+### Ext2 Per-Class Outputs
+
+| File | Description |
+|------|-------------|
+| `perclass_metrics.csv` | Per-class Precision / Recall / F1 for each method and seed |
+| `perclass_summary.csv` | Aggregated per-class summary across seeds |
+| `collapse_flags.csv` | Flags for classes collapsed during imputation |
+
+### Ext2 SHAP Comparison Outputs
+
+| File | Description |
+|------|-------------|
+| `table_top_features.csv` | Top-k features from SNI D and MissForest SHAP (Table S7-ready) |
+| `shap_importances.csv` | Full SHAP importance table |
+| `spearman_d_vs_shap.csv` | Spearman rank correlation between D and SHAP |
+| `d_matrix.csv` | Full SNI dependency matrix |
+
+### Ext2 Significance Test Outputs
+
+| File | Description |
+|------|-------------|
+| `wilcoxon_across_settings.csv` | Paired Wilcoxon tests across all settings (Table S8-ready) |
+| `wilcoxon_per_setting.csv` | Per dataset×mechanism×metric tests across seeds |
+| `wilcoxon_summary.csv` | Aggregated significance summary |
+
+### Ext2 Impute→Predict Outputs
+
+| File | Description |
+|------|-------------|
+| `per_seed_metrics.csv` | Per seed × method × model downstream metrics |
+| `table_VI_summary.csv` | Mean±std over seeds (Table VI-ready) |
 
 ---
 
@@ -552,6 +771,13 @@ find results -name "error.log" -exec echo "=== {} ===" \; -exec cat {} \;
 ---
 
 ## 10. Changelog
+
+### 2026-02-10
+- ✨ Added `ext2/`: Additional experiments for paper placeholders
+  - `exp3_per_class_categorical.py`: Per-class breakdown for imbalanced categorical targets
+  - `exp4_shap_comparison.py`: SNI D vs SHAP on MissForest comparison
+  - `exp5_significance_tests.py`: Paired Wilcoxon signed-rank significance tests
+  - `exp6_mimic_mortality_impute_predict.py`: MIMIC-IV Impute→Predict with LR/XGBoost
 
 ### 2026-02-04
 - ✨ Added `ext1/`: Extended experiments for reviewer response

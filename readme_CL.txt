@@ -246,11 +246,140 @@ python ext1/scripts/exp2_downstream_task_validation.py \
 
 
 ################################################################################
-# PART 5: UTILITY COMMANDS
+# PART 5: EXT2 - ADDITIONAL EXPERIMENTS (Paper v4.2 Placeholders)
+################################################################################
+
+# (Optional) install extra deps for Ext2
+# pip install shap scipy xgboost
+
+#-------------------------------------------------------------------------------
+# 5.1 Exp3: Per-class Breakdown (Table S9: MIMIC-IV ALARM, strict MAR, 30%)
+#-------------------------------------------------------------------------------
+
+# MIMIC-IV: ALARM per-class precision/recall/F1 (masked entries only)
+python ext2/scripts/exp3_per_class_categorical.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE SpO2 \
+  --mechanisms MAR \
+  --missing-rate 0.30 \
+  --mar-driver-cols HR SpO2 \
+  --methods SNI MissForest MeanMode \
+  --seeds 1 2 3 5 8 \
+  --outdir results_ext2/table_S9_perclass_alarm \
+  --use-gpu false
+
+# Key outputs:
+#   results_ext2/table_S9_perclass_alarm/perclass_metrics.csv
+#   results_ext2/table_S9_perclass_alarm/perclass_summary.csv
+#   results_ext2/table_S9_perclass_alarm/collapse_flags.csv
+
+# (Optional) eICU: per-class diagnostics for reviewer analysis
+python ext2/scripts/exp3_per_class_categorical.py \
+  --input-complete data/eICU_complete.csv \
+  --dataset-name eICU \
+  --categorical-vars mechanical_ventilation_std vasopressor_use_std age_band gender_std \
+  --continuous-vars map_mmhg lactate_mmol_l creatinine_mg_dl age_years gcs \
+                    vasopressor_dose hours_since_admission sbp_min dbp_min \
+                    hr_max resprate_max spo2_min hemoglobin_min sodium_min \
+                    urine_output_min composite_risk_score \
+  --mechanisms MCAR MAR MNAR \
+  --missing-rate 0.30 \
+  --mar-driver-cols age_years gcs \
+  --methods SNI MissForest \
+  --seeds 1 2 3 5 8 \
+  --outdir results_ext2/perclass_eicu \
+  --use-gpu false
+
+#-------------------------------------------------------------------------------
+# 5.2 Exp4: SHAP on MissForest vs SNI D (Table S7)
+#-------------------------------------------------------------------------------
+
+# MIMIC-IV (strict MAR, 30%): targets = ALARM, SBP (Table S7)
+python ext2/scripts/exp4_shap_comparison.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars ALARM SpO2 \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --mechanism MAR --missing-rate 0.30 \
+  --mar-driver-cols HR PULSE \
+  --seed 2026 \
+  --targets ALARM SBP \
+  --top-k 10 \
+  --shap-max-eval 512 \
+  --outdir results_ext2/table_S7_shap_vs_D/MIMIC \
+  --use-gpu false
+
+# Key outputs:
+#   results_ext2/table_S7_shap_vs_D/MIMIC/table_S7_top_features.csv
+#   results_ext2/table_S7_shap_vs_D/MIMIC/shap_importances.csv
+#   results_ext2/table_S7_shap_vs_D/MIMIC/spearman_d_vs_shap.csv
+#   results_ext2/table_S7_shap_vs_D/MIMIC/d_matrix.csv
+
+#-------------------------------------------------------------------------------
+# 5.3 Exp5: Wilcoxon Significance Tests (Table S8)
+#-------------------------------------------------------------------------------
+
+# Recommended for Table S8: one test per (metric, baseline) across settings
+python ext2/scripts/exp5_significance_tests.py \
+  --results-dir . \
+  --datasets MIMIC eICU NHANES ComCri AutoMPG Concrete \
+  --mechanisms MCAR MAR \
+  --metrics NRMSE R2 Spearman_rho Macro_F1 \
+  --reference-method SNI \
+  --baselines MissForest MIWAE \
+  --mode across_settings \
+  --alpha 0.05 \
+  --outdir results_ext2/significance
+
+# Optional: also produce per-setting tests across seeds
+python ext2/scripts/exp5_significance_tests.py \
+  --results-dir . \
+  --datasets MIMIC eICU NHANES ComCri AutoMPG Concrete \
+  --mechanisms MCAR MAR \
+  --metrics NRMSE R2 Spearman_rho Macro_F1 \
+  --reference-method SNI \
+  --baselines MissForest MIWAE \
+  --mode both \
+  --alpha 0.05 \
+  --outdir results_ext2/significance
+
+# Key outputs:
+#   results_ext2/significance/wilcoxon_across_settings.csv   (Table S8-ready)
+#   results_ext2/significance/wilcoxon_per_setting.csv
+#   results_ext2/significance/wilcoxon_summary.csv
+
+#-------------------------------------------------------------------------------
+# 5.4 Exp6: MIMIC-IV Impute→Predict (Main Table VI)
+#-------------------------------------------------------------------------------
+
+python ext2/scripts/exp6_mimic_mortality_impute_predict.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC_alarm_predict \
+  --label-col ALARM \
+  --binarize-threshold 34 \
+  --categorical-vars SpO2 \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --mechanism MAR --missing-rate 0.30 \
+  --mar-driver-cols HR PULSE \
+  --imputers SNI MissForest MeanMode \
+  --models LR XGB \
+  --seeds 1 2 3 5 8 \
+  --outdir results_ext2/table_VI_mimic_alarm \
+  --use-gpu false
+
+# Key outputs:
+#   results_ext2/table_VI_mimic_alarm/per_seed_metrics.csv
+#   results_ext2/table_VI_mimic_alarm/table_VI_summary.csv
+
+
+################################################################################
+# PART 6: UTILITY COMMANDS
 ################################################################################
 
 #-------------------------------------------------------------------------------
-# 5.1 Resume Failed Runs
+# 6.1 Resume Failed Runs
 #-------------------------------------------------------------------------------
 python scripts/run_manifest_parallel.py \
     --manifest data/manifest_sni_main.csv \
@@ -259,7 +388,7 @@ python scripts/run_manifest_parallel.py \
     --skip-existing
 
 #-------------------------------------------------------------------------------
-# 5.2 Check Progress
+# 6.2 Check Progress
 #-------------------------------------------------------------------------------
 # Count completed experiments
 find results_sni_main -name "metrics_summary.json" | wc -l
@@ -271,7 +400,7 @@ find results_sni_main -name "error.log" | wc -l
 find results_sni_main -name "error.log" -exec echo "=== {} ===" \; -exec cat {} \;
 
 #-------------------------------------------------------------------------------
-# 5.3 Verify Output Integrity
+# 6.3 Verify Output Integrity
 #-------------------------------------------------------------------------------
 python - <<'PY'
 import pandas as pd
@@ -286,7 +415,7 @@ if paths:
 PY
 
 #-------------------------------------------------------------------------------
-# 5.4 Resource Monitoring
+# 6.4 Resource Monitoring
 #-------------------------------------------------------------------------------
 # Monitor CPU
 htop
@@ -299,11 +428,11 @@ watch -n2 'echo "=== CPU ===" && top -b -n1 | head -8 && echo "=== GPU ===" && n
 
 
 ################################################################################
-# PART 6: OPTIONAL EXPERIMENTS (Extended Analysis)
+# PART 7: OPTIONAL EXPERIMENTS (Extended Analysis)
 ################################################################################
 
 #-------------------------------------------------------------------------------
-# 6.1 Missing Rate Sweep (5%, 10%, 20%, 30%, 40%, 50%)
+# 7.1 Missing Rate Sweep (5%, 10%, 20%, 30%, 40%, 50%)
 #-------------------------------------------------------------------------------
 python scripts/run_manifest_parallel.py \
     --manifest data/manifest_options/manifest_sni_rate_sweep.csv \
@@ -316,7 +445,7 @@ python scripts/aggregate_results.py \
     --outdir results_sni_rate_sweep/_summary
 
 #-------------------------------------------------------------------------------
-# 6.2 Full Baseline Comparison (All Settings)
+# 7.2 Full Baseline Comparison (All Settings)
 #-------------------------------------------------------------------------------
 python scripts/run_manifest_baselines.py \
     --manifest data/manifest_options/manifest_baselines_main_all.csv \
@@ -334,17 +463,21 @@ python scripts/aggregate_results.py \
 # EXPERIMENT SUMMARY
 ################################################################################
 #
-# Experiment              | Manifest                        | Est. Time | n-jobs
-# ------------------------|--------------------------------|-----------|--------
-# SNI Main                | manifest_sni_main.csv          | 1-2h      | -1
-# SNI Ablation            | manifest_sni_ablation.csv      | 2-3h      | -1
-# SNI MNAR                | manifest_sni_mnar.csv          | 3-4h      | -1
-# Baselines Main          | manifest_baselines_main.csv    | 4-6h      | -1
-# Baselines MNAR          | manifest_baselines_mnar.csv    | 6-8h      | -1
-# Baselines Deep (GPU)    | manifest_baselines_deep.csv    | 8-12h     | 1
-# Sanity Check            | (synthetic)                    | 1-2h      | N/A
-# Ext1 Audit Story        | (standalone script)            | <30min    | N/A
-# Ext1 Downstream         | (standalone script)            | <1h       | N/A
+# Experiment              | Manifest / Script               | Est. Time | n-jobs
+# ------------------------|---------------------------------|-----------|--------
+# SNI Main                | manifest_sni_main.csv           | 1-2h      | -1
+# SNI Ablation            | manifest_sni_ablation.csv       | 2-3h      | -1
+# SNI MNAR                | manifest_sni_mnar.csv           | 3-4h      | -1
+# Baselines Main          | manifest_baselines_main.csv     | 4-6h      | -1
+# Baselines MNAR          | manifest_baselines_mnar.csv     | 6-8h      | -1
+# Baselines Deep (GPU)    | manifest_baselines_deep.csv     | 8-12h     | 1
+# Sanity Check            | (synthetic)                     | 1-2h      | N/A
+# Ext1 Audit Story        | exp1_audit_story_leakage.py     | <30min    | N/A
+# Ext1 Downstream         | exp2_downstream_task_validation | <1h       | N/A
+# Ext2 Per-class (S9)     | exp3_per_class_categorical.py   | <30min    | N/A
+# Ext2 SHAP vs D (S7)     | exp4_shap_comparison.py         | <30min    | N/A
+# Ext2 Wilcoxon (S8)      | exp5_significance_tests.py      | <5min     | N/A
+# Ext2 Impute→Predict(VI) | exp6_mimic_mortality_impute_pre | <1h       | N/A
 #
 # Note: Estimated times based on 32-core CPU + 1 GPU server.
 #

@@ -41,8 +41,8 @@ Outputs
   audit_report.md
   audit_comparison.csv
 
-Example
--------
+Example (categorical proxy: ALARM_LEAK = ALARM)
+-------------------------------------------------
 python ext1/scripts/exp1_audit_story_leakage.py \
   --input-complete data/MIMIC_complete.csv \
   --dataset-name MIMIC \
@@ -52,6 +52,20 @@ python ext1/scripts/exp1_audit_story_leakage.py \
   --mechanism MAR --missing-rate 0.30 \
   --seed 2026 \
   --outdir results_ext1/audit_mimic_alarm
+
+Example (continuous proxy: SBP_LEAK = SBP + noise)
+---------------------------------------------------
+python ext1/scripts/exp1_audit_story_leakage.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars SpO2 ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --audit-target SBP \
+  --leak-source SBP --leak-col-name SBP_LEAK \
+  --leak-noise-std 0.5 \
+  --mechanism MAR --missing-rate 0.30 \
+  --seed 2026 \
+  --outdir results_ext1/audit_mimic_sbp
 """
 
 from __future__ import annotations
@@ -81,10 +95,10 @@ sys.path.insert(0, str(REPO_ROOT))
 GEN_DIR = REPO_ROOT / "utility_missing_data_gen_v1"
 sys.path.insert(0, str(GEN_DIR))
 
-from SNI_v0_2 import SNIImputer
-from SNI_v0_2.imputer import SNIConfig
-from SNI_v0_2.metrics import evaluate_imputation
-from SNI_v0_2.dataio import infer_schema_from_complete, cast_dataframe_to_schema
+from SNI_v0_3 import SNIImputer
+from SNI_v0_3.imputer import SNIConfig
+from SNI_v0_3.metrics import evaluate_imputation
+from SNI_v0_3.dataio import infer_schema_from_complete, cast_dataframe_to_schema
 
 from missing_data_generator import generate_missing_dataset
 
@@ -274,6 +288,9 @@ def main():
     ap.add_argument("--audit-target", type=str, required=True, help="Which target column to audit (e.g., ALARM).")
     ap.add_argument("--leak-source", type=str, default=None, help="Which source column to copy as the proxy. Default: same as --audit-target")
     ap.add_argument("--leak-col-name", type=str, default=None, help="Name of the injected proxy column. Default: <audit_target>_LEAK")
+    ap.add_argument("--leak-noise-std", type=float, default=0.0,
+                     help="(Continuous proxy only) Add Gaussian noise N(0, std) to the proxy copy. "
+                          "0 = perfect duplicate; >0 = realistic noisy proxy.")
 
     ap.add_argument("--mechanism", type=str, default="MAR", choices=["MCAR", "MAR", "MNAR"], help="Missingness mechanism.")
     ap.add_argument("--missing-rate", type=float, default=0.30, help="Missing rate.")
@@ -322,9 +339,19 @@ def main():
 
     # Build augmented complete table
     df_aug = df.copy()
-    df_aug[leak_col] = df_aug[leak_source]
+    df_aug[leak_col] = df_aug[leak_source].copy()
 
-    # Update var lists (treat proxy as categorical if source is categorical)
+    # Optional: add Gaussian noise for continuous proxies to simulate a
+    # realistic "noisy duplicate" rather than an exact copy.
+    leak_noise_std = float(args.leak_noise_std)
+    leak_is_continuous = leak_source in cont_vars
+
+    if leak_is_continuous and leak_noise_std > 0:
+        rng = np.random.default_rng(int(args.seed))
+        noise = rng.normal(loc=0.0, scale=leak_noise_std, size=len(df_aug))
+        df_aug[leak_col] = df_aug[leak_col].astype(float) + noise
+
+    # Update var lists: proxy inherits the type of its source column
     cat_aug = list(cat_vars)
     cont_aug = list(cont_vars)
     if leak_source in cat_vars and leak_col not in cat_aug:
@@ -474,7 +501,9 @@ def main():
     if mechanism == "MAR":
         lines.append(f"- MAR drivers (strict): {mar_drivers}")
     lines.append(f"- Audited target: **{audit_target}**")
-    lines.append(f"- Injected proxy: **{leak_col} = {leak_source}** (kept always observed)")
+    proxy_type = "continuous" if leak_is_continuous else "categorical"
+    noise_note = f", noise σ={leak_noise_std:.3f}" if (leak_is_continuous and leak_noise_std > 0) else ""
+    lines.append(f"- Injected proxy: **{leak_col} = {leak_source}** ({proxy_type}{noise_note}, kept always observed)")
     lines.append("")
 
     lines.append("## Key result: does D flag the proxy as dominant?\n")

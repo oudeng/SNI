@@ -160,8 +160,8 @@ def _run_sni(
     use_gpu: bool,
 ) -> Tuple[pd.DataFrame, pd.DataFrame | None]:
     """Run SNI imputation and return (imputed_df, D_matrix_or_None)."""
-    from SNI_v0_2 import SNIImputer  # type: ignore
-    from SNI_v0_2.imputer import SNIConfig  # type: ignore
+    from SNI_v0_3 import SNIImputer  # type: ignore
+    from SNI_v0_3.imputer import SNIConfig  # type: ignore
 
     cfg = SNIConfig(seed=seed, use_gpu=use_gpu)
     imputer = SNIImputer(
@@ -491,6 +491,64 @@ def main() -> None:
     print(f"[Exp4] Saved: {outdir / 'shap_importances.csv'}")
     print(f"[Exp4] Saved: {outdir / 'spearman_d_vs_shap.csv'}")
     print(f"[Exp4] Saved: {outdir / 'table_S7_top_features.csv'}")
+
+    # ------------------------------------------------------------------
+    # Auto-generate discussion for ρ(D, SHAP) differences
+    # ------------------------------------------------------------------
+    if spearman_rows:
+        lines: List[str] = []
+        lines.append("# Discussion: SNI reliance (D) vs post-hoc SHAP on MissForest\n")
+        lines.append(f"Dataset: **{args.dataset_name}**, "
+                      f"mechanism: **{args.mechanism}**, "
+                      f"missing rate: **{args.missing_rate:.0%}**, "
+                      f"seed: **{args.seed}**\n")
+
+        for sr in spearman_rows:
+            tgt = sr["target"]
+            rho = sr["spearman_rho"]
+            p = sr["p_value"]
+            n = sr["n_sources"]
+
+            lines.append(f"## Target: {tgt}\n")
+            lines.append(f"- Spearman ρ = **{rho:.3f}** (p = {p:.3g}, n_sources = {n})")
+
+            if rho >= 0.8:
+                lines.append("- **Interpretation**: Strong agreement. D and SHAP largely "
+                             "identify the same feature importance ordering, supporting "
+                             "the validity of the intrinsic reliance matrix as an "
+                             "interpretability tool.")
+            elif rho >= 0.5:
+                lines.append("- **Interpretation**: Moderate agreement. D and SHAP share "
+                             "a broadly similar ranking, but differences in methodology "
+                             "(intrinsic attention vs post-hoc surrogate) lead to partial "
+                             "divergence, especially for mid-ranked features.")
+            elif rho >= 0.2:
+                lines.append("- **Interpretation**: Weak agreement. The two explanations "
+                             "diverge noticeably, which may reflect fundamental differences "
+                             "between an imputation-internal reliance measure (D) and an "
+                             "external surrogate-based explanation (SHAP).")
+            else:
+                lines.append("- **Interpretation**: Very weak or no agreement. This large "
+                             "divergence suggests the two methods capture fundamentally "
+                             "different aspects of feature dependence. D reflects learned "
+                             "attention during imputation, while TreeSHAP reflects the "
+                             "surrogate model's marginal contributions.")
+
+            lines.append("")
+
+        lines.append("## General remarks\n")
+        mean_rho = np.mean([sr["spearman_rho"] for sr in spearman_rows])
+        lines.append(f"Average ρ across targets: **{mean_rho:.3f}**\n")
+        lines.append("Note: Perfect agreement is not expected. D is computed "
+                     "*during* imputation training and reflects learned multi-head "
+                     "attention weights, while SHAP is computed *post-hoc* on a "
+                     "separate RF surrogate fitted to the MissForest-imputed data. "
+                     "The two measures answer subtly different questions.\n")
+
+        discussion_path = outdir / "discussion_d_vs_shap.md"
+        discussion_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"[Exp4] Saved: {discussion_path}")
+
     print("[Exp4] Done.")
 
 

@@ -43,7 +43,7 @@ python ext2/scripts/exp6_mimic_mortality_impute_predict.py \
   --categorical-vars ALARM SpO2 ... \
   --continuous-vars RESP ABP SBP DBP HR PULSE ... \
   --mechanism MAR --missing-rate 0.30 \
-  --imputers SNI MissForest MeanMode \
+  --imputers SNI MissForest MeanMode HyperImpute TabCSDI \
   --models LR XGB \
   --seeds 1 2 3 5 8 \
   --outdir results_ext2/table_VI_mimic_mortality \
@@ -57,7 +57,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -182,8 +182,8 @@ def _run_sni(
     seed: int,
     use_gpu: bool,
 ) -> pd.DataFrame:
-    from SNI_v0_2 import SNIImputer  # type: ignore
-    from SNI_v0_2.imputer import SNIConfig  # type: ignore
+    from SNI_v0_3 import SNIImputer  # type: ignore
+    from SNI_v0_3.imputer import SNIConfig  # type: ignore
 
     cfg = SNIConfig(seed=seed, use_gpu=use_gpu)
     imputer = SNIImputer(
@@ -301,7 +301,7 @@ def main() -> None:
     parser.add_argument("--driver-col", default=None, help="Optional always-observed driver (e.g., ID) for strict MAR")
     parser.add_argument("--mechanism", default="MAR")
     parser.add_argument("--missing-rate", type=float, default=0.30)
-    parser.add_argument("--imputers", nargs="+", default=["SNI", "MissForest", "MeanMode"])
+    parser.add_argument("--imputers", nargs="+", default=["SNI", "MissForest", "MeanMode", "HyperImpute", "TabCSDI"])
     parser.add_argument("--models", nargs="+", default=["LR", "XGB"])
     parser.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3, 5, 8])
     parser.add_argument("--test-size", type=float, default=0.30)

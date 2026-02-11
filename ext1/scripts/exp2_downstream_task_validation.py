@@ -39,7 +39,7 @@ python ext1/scripts/exp2_downstream_task_validation.py \
   --mechanism MAR --missing-rate 0.30 \
   --mar-driver-cols age gender_std \
   --fairness-col gender_std \
-  --imputers SNI MissForest MeanMode MICE \
+  --imputers SNI MissForest MeanMode MICE HyperImpute TabCSDI \
   --seeds 1 2 3 5 8 \
   --outdir results_ext1/downstream_nhanes
 """
@@ -68,9 +68,9 @@ sys.path.insert(0, str(GEN_DIR))
 from missing_data_generator import generate_missing_dataset
 
 from baselines import build_baseline_imputer, list_baselines
-from SNI_v0_2 import SNIImputer
-from SNI_v0_2.imputer import SNIConfig
-from SNI_v0_2.dataio import infer_schema_from_complete, cast_dataframe_to_schema
+from SNI_v0_3 import SNIImputer
+from SNI_v0_3.imputer import SNIConfig
+from SNI_v0_3.dataio import infer_schema_from_complete, cast_dataframe_to_schema
 
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
@@ -265,7 +265,7 @@ def main():
     ap.add_argument(
         "--imputers",
         nargs="+",
-        default=["SNI", "MissForest", "MeanMode"],
+        default=["SNI", "MissForest", "MeanMode", "HyperImpute", "TabCSDI"],
         help=(
             "Imputation methods. 'SNI' or any baseline in baselines/registry.py ("
             + ",".join(list_baselines())
@@ -285,7 +285,7 @@ def main():
     ap.add_argument("--sni-lr", type=float, default=2e-4)
     ap.add_argument("--sni-batch-size", type=int, default=128)
 
-    ap.add_argument("--baseline-use-gpu", type=str, default="false", choices=["true", "false"], help="GPU for MIWAE/GAIN baselines.")
+    ap.add_argument("--baseline-use-gpu", type=str, default="false", choices=["true", "false"], help="GPU for GAIN/MIWAE/TabCSDI baselines.")
 
     ap.add_argument("--class-weight-balanced", type=str, default="true", choices=["true", "false"], help="Use class_weight='balanced' for classification model.")
 

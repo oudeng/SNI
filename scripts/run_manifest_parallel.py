@@ -81,12 +81,30 @@ def tqdm_joblib(tqdm_object):
         joblib.parallel.BatchCompletionCallBack = old_batch_callback
         tqdm_object.close()
 
-# Add parent directory to path for SNI_v0_2 imports
+# Add parent directory to path for SNI imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from SNI_v0_2 import SNIImputer
+
+def _import_sni(version: str):
+    """Conditionally import SNI based on version string."""
+    if version == "v0.3":
+        from SNI_v0_3 import SNIImputer
+        from SNI_v0_3.dataio import cast_dataframe_to_schema, load_complete_and_missing
+        from SNI_v0_3.imputer import SNIConfig
+        from SNI_v0_3.metrics import evaluate_imputation, augment_summary_with_imputer_stats
+    else:
+        from SNI_v0_2 import SNIImputer
+        from SNI_v0_2.dataio import cast_dataframe_to_schema, load_complete_and_missing
+        from SNI_v0_2.imputer import SNIConfig
+        from SNI_v0_2.metrics import evaluate_imputation
+        augment_summary_with_imputer_stats = None
+    return SNIImputer, SNIConfig, cast_dataframe_to_schema, load_complete_and_missing, evaluate_imputation, augment_summary_with_imputer_stats
+
+
+# Default: import v0.2 for backward compatibility at module level
+from SNI_v0_2 import SNIImputer as _SNIImputer_v02
 from SNI_v0_2.dataio import cast_dataframe_to_schema, load_complete_and_missing
-from SNI_v0_2.imputer import SNIConfig
+from SNI_v0_2.imputer import SNIConfig as _SNIConfig_v02
 from SNI_v0_2.metrics import evaluate_imputation
 
 import warnings
@@ -153,19 +171,24 @@ def run_single_experiment(
     exp_index: int,
     total_exps: int,
     torch_num_threads: int = 1,
+    sni_version: str = "v0.2",
 ) -> Tuple[Optional[Dict[str, Any]], str, float]:
     """
     Run a single experiment from manifest row.
-    
+
     Returns:
         Tuple of (summary_dict or None, status_message, runtime_seconds)
     """
     exp_id = str(row["exp_id"])
     outdir = out_root / exp_id
     t0 = time.time()
-    
+
     try:
         outdir.mkdir(parents=True, exist_ok=True)
+
+        # Import SNI version
+        (SNIImputer, SNIConfig, cast_schema, load_cm,
+         eval_imp, augment_stats) = _import_sni(sni_version)
 
         # Per-worker CPU thread control (helps avoid oversubscription in parallel runs)
         try:
@@ -185,7 +208,7 @@ def run_single_experiment(
         all_vars = cat_vars + cont_vars
 
         # Load data with stable schema
-        X_complete, X_missing, schema = load_complete_and_missing(
+        X_complete, X_missing, schema = load_cm(
             input_complete=str(row["input_complete"]),
             input_missing=str(row["input_missing"]),
             categorical_vars=cat_vars,
@@ -197,7 +220,7 @@ def run_single_experiment(
             mask_df = pd.read_csv(row["mask_file"])[all_vars].astype(int).astype(bool)
 
         # Build config from manifest row
-        cfg = SNIConfig(
+        cfg_kwargs = dict(
             alpha0=float(row.get("alpha0", 1.0)),
             gamma=float(row.get("gamma", 0.9)),
             max_iters=int(row.get("max_iters", 3)),
@@ -216,6 +239,25 @@ def run_single_experiment(
             use_gpu=_as_bool(row.get("use_gpu", default_use_gpu)),
         )
 
+        # v0.3-specific config parameters
+        if sni_version == "v0.3":
+            cat_balance_mode = str(row.get("cat_balance_mode", "none")).strip()
+            if cat_balance_mode.lower() == "nan" or not cat_balance_mode:
+                cat_balance_mode = "none"
+            cat_lr_mult = float(row.get("cat_lr_mult", 1.0)) if pd.notna(row.get("cat_lr_mult")) else 1.0
+            lambda_mode = str(row.get("lambda_mode", "learned")).strip()
+            if lambda_mode.lower() == "nan" or not lambda_mode:
+                lambda_mode = "learned"
+            lambda_fixed_value = float(row.get("lambda_fixed_value", 1.0)) if pd.notna(row.get("lambda_fixed_value")) else 1.0
+            cfg_kwargs.update(
+                cat_balance_mode=cat_balance_mode,
+                cat_lr_mult=cat_lr_mult,
+                lambda_mode=lambda_mode,
+                lambda_fixed_value=lambda_fixed_value,
+            )
+
+        cfg = SNIConfig(**cfg_kwargs)
+
         # Handle SNI+KNN variant
         train_variant = cfg.variant if cfg.variant != "SNI+KNN" else "SNI"
         cfg.variant = train_variant
@@ -227,10 +269,10 @@ def run_single_experiment(
         runtime = float(time.time() - t_train_start)
 
         # Ensure clean output dtypes
-        X_imp = cast_dataframe_to_schema(X_imp, schema)
+        X_imp = cast_schema(X_imp, schema)
 
         # Evaluate
-        eval_res = evaluate_imputation(
+        eval_res = eval_imp(
             X_imputed=X_imp,
             X_complete=X_complete,
             X_missing=X_missing,
@@ -247,18 +289,39 @@ def run_single_experiment(
         summary.update({
             "exp_id": exp_id,
             "variant": str(row["variant"]),
+            "sni_version": sni_version,
             "seed": int(row["seed"]),
             "runtime_sec": runtime,
         })
+
+        # v0.3: augment summary with convergence and lambda stats
+        if sni_version == "v0.3" and augment_stats is not None:
+            summary = augment_stats(summary, imputer)
+
         pd.DataFrame([summary]).to_csv(outdir / "metrics_summary.csv", index=False)
         (outdir / "metrics_summary.json").write_text(
-            json.dumps(summary, indent=2, ensure_ascii=False) + "\n", 
+            json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8"
         )
 
         # Dependency matrix
         D = imputer.compute_dependency_matrix()
         D.to_csv(outdir / "dependency_matrix.csv", index=True)
+
+        # v0.3: save convergence curve and lambda artifacts
+        if sni_version == "v0.3":
+            try:
+                imputer.save_convergence_curve(outdir / "convergence_curve.csv")
+            except Exception:
+                pass
+            try:
+                imputer.save_lambda_per_head(outdir / "lambda_per_head.csv")
+            except Exception:
+                pass
+            try:
+                imputer.save_lambda_values(outdir / "lambda_values.json")
+            except Exception:
+                pass
 
         total_time = time.time() - t0
         status = f"[OK] ({exp_index+1}/{total_exps}) {exp_id} done in {total_time:.1f}s -> {outdir}"
@@ -267,7 +330,7 @@ def run_single_experiment(
     except Exception as e:
         total_time = time.time() - t0
         error_msg = f"[FAIL] ({exp_index+1}/{total_exps}) {exp_id} failed after {total_time:.1f}s: {str(e)}"
-        
+
         # Save error log
         try:
             outdir.mkdir(parents=True, exist_ok=True)
@@ -277,7 +340,7 @@ def run_single_experiment(
             )
         except:
             pass
-        
+
         return None, error_msg, total_time
 
 
@@ -325,6 +388,8 @@ Examples:
                     help="Disable tqdm progress bar (use joblib verbose output instead)")
     ap.add_argument("--progress-interval", type=float, default=0.5,
                     help="Progress bar update interval in seconds (default: 0.5)")
+    ap.add_argument("--sni-version", type=str, default="v0.2", choices=["v0.2", "v0.3"],
+                    help="SNI module version to use (default: v0.2)")
     args = ap.parse_args()
 
     out_root = Path(args.outdir)
@@ -366,9 +431,10 @@ Examples:
         return
 
     default_use_gpu = args.default_use_gpu == "true"
-    
+    sni_version = args.sni_version
+
     print(f"[INFO] Starting {total_exps} experiments with {args.n_jobs} parallel workers")
-    print(f"[INFO] Backend: {args.backend}, GPU default: {default_use_gpu}")
+    print(f"[INFO] Backend: {args.backend}, GPU default: {default_use_gpu}, SNI version: {sni_version}")
     print(f"[INFO] Output directory: {out_root}")
     print("-" * 60)
 
@@ -383,6 +449,7 @@ Examples:
             exp_index=i,
             total_exps=total_exps,
             torch_num_threads=args.torch_num_threads,
+            sni_version=sni_version,
         )
         for i, row in df.iterrows()
     ]
@@ -439,6 +506,7 @@ Examples:
     # Save run metadata
     run_meta = {
         "manifest": args.manifest,
+        "sni_version": sni_version,
         "n_jobs": args.n_jobs,
         "backend": args.backend,
         "total_experiments": total_exps,

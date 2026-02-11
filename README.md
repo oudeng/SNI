@@ -35,11 +35,12 @@ Statistical--Neural Interaction (SNI), an interpretable mixed-type imputation fr
 
 | Directory/File | Description |
 |----------------|-------------|
-| `SNI_v0_2/` | Core SNI algorithm package (importable module) |
-| `baselines/` | Baseline imputation methods (MeanMode, KNN, MICE, MissForest, GAIN, MIWAE) |
+| `SNI_v0_2/` | Core SNI algorithm package v0.2 (importable module) |
+| `SNI_v0_3/` | Core SNI algorithm package v0.3 — learnable per-head λ, categorical balance mode, convergence monitoring |
+| `baselines/` | Baseline imputation methods (MeanMode, KNN, MICE, MissForest, GAIN, MIWAE, HyperImpute, TabCSDI) |
 | `scripts/` | Experiment runners, aggregation, visualization, and table generation |
 | `ext1/` | Extended experiments: interpretability audit & downstream task validation |
-| `ext2/` | Extended experiments: per-class breakdown, SHAP comparison, significance tests, Impute→Predict |
+| `ext2/` | Extended experiments: per-class breakdown, SHAP comparison, attention rollout, D stability, significance tests, Impute→Predict |
 | `data/` | Datasets and experiment manifests |
 | `configs/` | Configuration files |
 
@@ -83,7 +84,7 @@ pip install -r requirements.txt
 pip install shap scipy xgboost
 
 # Verify installation
-python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
+python -c "from SNI_v0_3.imputer import SNIImputer; print('SNI v0.3 ready!')"
 ```
 
 ### Dependencies Summary
@@ -94,6 +95,7 @@ python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
 - `numpy>=1.21`: Numerical computing
 - `joblib`: Parallel execution
 - `matplotlib>=3.5`: Visualization
+- `hyperimpute>=0.1.0`: HyperImpute baseline (Jarrett et al., ICML 2022)
 - `shap` (optional): TreeSHAP for Ext2 Exp4
 - `scipy` (optional): Wilcoxon tests for Ext2 Exp5
 - `xgboost` (optional): XGBoost classifier for Ext2 Exp6
@@ -104,10 +106,15 @@ python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
 
 ```
 .
-├── SNI_v0_2/                   # Core SNI algorithm
+├── SNI_v0_2/                   # Core SNI algorithm (v0.2)
 │   ├── imputer.py              # Main imputer class
 │   ├── cpfa.py                 # Cross-Feature Attention module
 │   ├── metrics.py              # Evaluation metrics
+│   └── ...
+├── SNI_v0_3/                   # Core SNI algorithm (v0.3) ← NEW
+│   ├── imputer.py              # Learnable per-head λ, convergence monitoring
+│   ├── cpfa.py                 # CPFA with cat_balance_mode support
+│   ├── metrics.py              # Extended metrics + augment_summary_with_imputer_stats()
 │   └── ...
 ├── baselines/                  # Baseline methods
 │   ├── MeanMode_v1.py          # Mean/Mode imputation
@@ -116,11 +123,16 @@ python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
 │   ├── MissForest_v2.py        # Random Forest-based imputation
 │   ├── GAIN_v5.py              # Generative Adversarial Imputation Nets
 │   ├── MIWAE_v3.py             # Missing data IWAE
-│   └── registry.py             # Unified baseline interface
+│   ├── HyperImpute_v1.py       # AutoML-based imputation (Jarrett, ICML 2022) ← NEW
+│   ├── TabCSDI_v1.py           # Score-based diffusion (Zheng, NeurIPS TRL 2022) ← NEW
+│   ├── tabcsdi_core/           # TabCSDI internal modules ← NEW
+│   │   ├── diff_models.py      # Denoising transformer
+│   │   └── main_model.py       # Diffusion sampling loop
+│   └── registry.py             # Unified baseline interface (8 methods)
 ├── scripts/
-│   ├── run_experiment.py       # Single experiment runner
+│   ├── run_experiment.py       # Single experiment runner (supports --sni-version v0.2|v0.3)
 │   ├── run_manifest_parallel.py    # Parallel batch runner for SNI
-│   ├── run_manifest_baselines.py   # Parallel batch runner for baselines
+│   ├── run_manifest_baselines.py   # Parallel batch runner for baselines (8 methods)
 │   ├── aggregate_results.py    # Results aggregation (mean±std)
 │   ├── make_latex_table.py     # LaTeX table generation
 │   ├── synth_generate.py       # Synthetic data generator
@@ -128,22 +140,26 @@ python -c "from SNI_v0_2.imputer import SNIImputer; print('SNI ready!')"
 │   └── viz_*.py                # Visualization scripts
 ├── ext1/                       # Extended experiments (Ext1)
 │   └── scripts/
-│       ├── exp1_audit_story_leakage.py         # Interpretability audit
+│       ├── exp1_audit_story_leakage.py         # Interpretability audit (+ continuous proxy)
 │       └── exp2_downstream_task_validation.py  # Downstream task validation
 ├── ext2/                       # Extended experiments (Ext2)
 │   └── scripts/
 │       ├── exp3_per_class_categorical.py       # Per-class breakdown (Table S9)
 │       ├── exp4_shap_comparison.py             # SHAP vs SNI D comparison (Table S7)
+│       ├── exp4b_attention_rollout.py          # D vs rollout vs flow (Table S7.B) ← NEW
+│       ├── exp4c_d_stability.py                # Cross-seed D stability (Table S7.C) ← NEW
 │       ├── exp5_significance_tests.py          # Wilcoxon significance tests (Table S8)
 │       └── exp6_mimic_mortality_impute_predict.py  # MIMIC Impute→Predict (Table VI)
 ├── data/
-│   ├── *_complete.csv          # Complete datasets
-│   ├── {Dataset}/              # Missing datasets with masks
-│   ├── synth_s5/               # Synthetic datasets for sanity check
-│   ├── manifest_sni_*.csv      # SNI experiment manifests
-│   └── manifest_baselines_*.csv # Baseline experiment manifests
+│   ├── *_complete.csv              # Complete datasets
+│   ├── {Dataset}/                  # Missing datasets with masks
+│   ├── synth_s5/                   # Synthetic datasets for sanity check
+│   ├── manifest_sni_*.csv          # SNI experiment manifests (v0.2)
+│   ├── manifest_sni_v03_*.csv      # SNI experiment manifests (v0.3) ← NEW
+│   ├── manifest_baselines_*.csv    # Baseline experiment manifests
+│   └── manifest_baselines_new.csv  # HyperImpute + TabCSDI manifest ← NEW
 ├── configs/
-│   └── datasets.yaml           # Dataset configurations
+│   └── datasets.yaml           # Dataset configurations (+ v0.3 balance settings)
 ├── requirements.txt
 └── README.md
 ```
@@ -219,6 +235,28 @@ Three synthetic settings with **known ground-truth dependency structures**:
 |----------|-------------|-------------|
 | `manifest_baselines_deep.csv` | 540 | GAIN/MIWAE × 6 datasets × 3 mechanisms × 3 rates × 5 seeds |
 
+### 5.4b New Baselines: HyperImpute & TabCSDI
+
+**Objective**: Compare with modern AutoML and diffusion-based imputation methods.
+
+| Manifest | Experiments | Description |
+|----------|-------------|-------------|
+| `manifest_baselines_new.csv` | 120 | HyperImpute/TabCSDI × 6 datasets × 2 mechanisms × 5 seeds |
+
+| Method | Reference | Key Idea |
+|--------|-----------|----------|
+| **HyperImpute** | Jarrett et al., ICML 2022 | AutoML column-wise imputer with iterative refinement |
+| **TabCSDI** | Zheng & Charoenphakdee, NeurIPS TRL 2022 | Score-based conditional diffusion for tabular data |
+
+### 5.4c SNI v0.3 Experiments
+
+**Objective**: Evaluate the new SNI v0.3 features (learnable per-head λ, categorical balance mode).
+
+| Manifest | Experiments | Description |
+|----------|-------------|-------------|
+| `manifest_sni_v03_main.csv` | 60 | SNI v0.3 on 6 datasets × 2 mechanisms × 5 seeds |
+| `manifest_sni_v03_ablation_lambda.csv` | 50 | Fixed-λ grid (0.1–5.0) on MIMIC/NHANES × 5 seeds |
+
 ### 5.5 Sanity Check: Dependency Recovery
 
 **Objective**: Validate that the learned dependency matrix D recovers true causal structure.
@@ -252,7 +290,7 @@ Three synthetic settings with **known ground-truth dependency structures**:
 
 **Method**:
 1. From a **complete** dataset, introduce missingness to **feature columns only** (target *y* is never missing).
-2. Impute features with multiple methods (SNI, MissForest, MeanMode, MICE).
+2. Impute features with multiple methods (SNI, MissForest, MeanMode, MICE, HyperImpute, TabCSDI).
 3. Train a downstream model (LogisticRegression / Ridge) on the imputed features.
 4. Compare downstream performance (Accuracy / Macro-F1 / AUC or RMSE / R²) and cross-seed stability (std).
 5. Optionally compute a simple `group_gap` (max − min across a sensitive attribute such as `gender_std`) as evidence of reduced bias.
@@ -302,8 +340,32 @@ Three synthetic settings with **known ground-truth dependency structures**:
 - `spearman_d_vs_shap.csv` — Spearman rank correlation between D and SHAP.
 - `d_matrix.csv` — full dependency matrix.
 
-**Script**: `ext2/scripts/exp4_shap_comparison.py`  
+**Script**: `ext2/scripts/exp4_shap_comparison.py`
 **Extra Dependency**: `pip install shap`
+
+### 5.9b Ext2 — D vs Attention Rollout / Flow (Table S7.B)
+
+**Objective**: Compare three aggregation strategies for extracting feature importance from multi-head attention weights (Abnar & Zuidema, 2020).
+
+| Method | Description |
+|--------|-------------|
+| D (head-mean) | Default SNI: average over heads, row-normalize |
+| Rollout (residual-aware) | A' = 0.5 * mean(A) + 0.5 * I, row-normalize |
+| Flow (max-head) | Per-source max across heads, row-normalize |
+
+**Outputs**: `table_S7B_aggregation_comparison.csv`, `spearman_aggregation.csv`, `attention_per_head.csv`
+
+**Script**: `ext2/scripts/exp4b_attention_rollout.py`
+
+### 5.9c Ext2 — Cross-Seed D Stability (Table S7.C)
+
+**Objective**: Assess whether the learned dependency matrix D is reproducible across different random seeds, or an artifact of initialization noise.
+
+**Method**: Fix the missingness pattern (same missing-seed), run SNI with K different model seeds, collect K dependency matrices, compute pairwise Spearman for each target's D row.
+
+**Outputs**: `table_S7C_d_stability.csv`, `pairwise_spearman.csv`, `d_matrices/seed*.csv`
+
+**Script**: `ext2/scripts/exp4c_d_stability.py`
 
 ### 5.10 Ext2 — Wilcoxon Significance Tests
 
@@ -327,7 +389,7 @@ Three synthetic settings with **known ground-truth dependency structures**:
 
 **Method**:
 1. Inject strict MAR missingness into **feature columns only** (label always observed).
-2. Impute with each method (SNI, MissForest, MeanMode).
+2. Impute with each method (SNI, MissForest, MeanMode, HyperImpute, TabCSDI).
 3. Train **Logistic Regression** and **XGBoost** on imputed features.
 4. Report AUROC / AUPRC / Accuracy / F1.
 
@@ -342,33 +404,36 @@ Three synthetic settings with **known ground-truth dependency structures**:
 
 ## 6. Quick Start
 
-### Run a Single Experiment
+### Run a Single Experiment (v0.3)
 
 ```bash
 python scripts/run_experiment.py \
   --input-complete data/MIMIC_complete.csv \
   --input-missing data/MIMIC/MIMIC_MAR_30per.csv \
-  --categorical-vars SpO2 \
-  --continuous-vars RESP ABP SBP DBP HR PULSE ALARM \
+  --categorical-vars SpO2 ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
   --variant SNI \
   --seed 8 \
+  --sni-version v0.3 \
   --outdir results/test_run
 ```
 
 ### Run Parallel Batch Experiments
 
 ```bash
-# SNI experiments (8 parallel processes)
+# SNI v0.3 experiments (8 parallel processes)
 python scripts/run_manifest_parallel.py \
-    --manifest data/manifest_sni_main.csv \
-    --outdir results_sni_main \
-    --n-jobs 8
+    --manifest data/manifest_sni_v03_main.csv \
+    --outdir results_sni_v03_main \
+    --n-jobs 8 \
+    --sni-version v0.3
 
-# Baseline experiments
+# Baseline experiments (including HyperImpute + TabCSDI)
 python scripts/run_manifest_baselines.py \
-    --manifest data/manifest_baselines_main.csv \
-    --outdir results_baselines_main \
-    --n-jobs 8
+    --manifest data/manifest_baselines_new.csv \
+    --outdir results_baselines_new \
+    --n-jobs 4 \
+    --default-use-gpu true
 ```
 
 ---
@@ -534,7 +599,7 @@ python ext1/scripts/exp2_downstream_task_validation.py \
   --mechanism MAR --missing-rate 0.30 \
   --mar-driver-cols age gender_std \
   --fairness-col gender_std \
-  --imputers SNI MissForest MeanMode MICE \
+  --imputers SNI MissForest MeanMode MICE HyperImpute TabCSDI \
   --seeds 1 2 3 5 8 \
   --outdir results_ext1/downstream_nhanes \
   --sni-use-gpu false \
@@ -603,7 +668,7 @@ python ext2/scripts/exp5_significance_tests.py \
   --mechanisms MCAR MAR \
   --metrics NRMSE R2 Spearman_rho Macro_F1 \
   --reference-method SNI \
-  --baselines MissForest MIWAE \
+  --baselines MissForest MIWAE GAIN KNN MICE MeanMode HyperImpute TabCSDI \
   --mode across_settings \
   --alpha 0.05 \
   --outdir results_ext2/significance
@@ -615,7 +680,7 @@ python ext2/scripts/exp5_significance_tests.py \
   --mechanisms MCAR MAR \
   --metrics NRMSE R2 Spearman_rho Macro_F1 \
   --reference-method SNI \
-  --baselines MissForest MIWAE \
+  --baselines MissForest MIWAE GAIN KNN MICE MeanMode HyperImpute TabCSDI \
   --mode both \
   --alpha 0.05 \
   --outdir results_ext2/significance
@@ -638,7 +703,7 @@ python ext2/scripts/exp6_mimic_mortality_impute_predict.py \
   --continuous-vars RESP ABP SBP DBP HR PULSE \
   --mechanism MAR --missing-rate 0.30 \
   --mar-driver-cols HR PULSE \
-  --imputers SNI MissForest MeanMode \
+  --imputers SNI MissForest MeanMode HyperImpute TabCSDI \
   --models LR XGB \
   --seeds 1 2 3 5 8 \
   --outdir results_ext2/table_VI_mimic_alarm \
@@ -663,6 +728,9 @@ python ext2/scripts/exp6_mimic_mortality_impute_predict.py \
 | `dependency_matrix.csv` | Learned dependency matrix D |
 | `dependency_matrix.png` | Heatmap visualization |
 | `run_config.json` | Complete run configuration |
+| `convergence_curve.csv` | (v0.3) Per-iteration loss values |
+| `lambda_per_head.csv` | (v0.3) Learned λ values per head per target |
+| `lambda_values.json` | (v0.3) Final λ snapshot |
 
 ### Aggregated Outputs
 
@@ -704,6 +772,22 @@ python ext2/scripts/exp6_mimic_mortality_impute_predict.py \
 | `shap_importances.csv` | Full SHAP importance table |
 | `spearman_d_vs_shap.csv` | Spearman rank correlation between D and SHAP |
 | `d_matrix.csv` | Full SNI dependency matrix |
+
+### Ext2 Attention Rollout Outputs (S7.B)
+
+| File | Description |
+|------|-------------|
+| `table_S7B_aggregation_comparison.csv` | Top-k feature ranking under D / Rollout / Flow |
+| `spearman_aggregation.csv` | Pairwise Spearman among three aggregation methods |
+| `attention_per_head.csv` | Raw per-head attention weights |
+
+### Ext2 D Stability Outputs (S7.C)
+
+| File | Description |
+|------|-------------|
+| `table_S7C_d_stability.csv` | Mean ± std Spearman across seed pairs (stability index) |
+| `pairwise_spearman.csv` | Per (seed_a, seed_b, target) Spearman values |
+| `d_matrices/seed*.csv` | Individual D matrices per seed |
 
 ### Ext2 Significance Test Outputs
 
@@ -771,6 +855,24 @@ find results -name "error.log" -exec echo "=== {} ===" \; -exec cat {} \;
 ---
 
 ## 10. Changelog
+
+### 2026-02-11
+- 🚀 **SNI v0.3**: Major algorithmic upgrade
+  - Learnable per-head λ coefficients (replacing fixed scalar)
+  - Categorical balance mode (`inverse_freq`, `sqrt_inverse_freq`) for imbalanced targets
+  - Convergence monitoring with early stopping
+  - Runtime tracking (`runtime_seconds` in metrics)
+  - New output artifacts: `convergence_curve.csv`, `lambda_per_head.csv`, `lambda_values.json`
+- ✨ Added `baselines/HyperImpute_v1.py`: AutoML-based imputation (Jarrett et al., ICML 2022)
+- ✨ Added `baselines/TabCSDI_v1.py`: Score-based conditional diffusion (Zheng & Charoenphakdee, NeurIPS TRL 2022)
+- ✨ Added `ext2/scripts/exp4b_attention_rollout.py`: D vs attention rollout/flow comparison (Table S7.B)
+- ✨ Added `ext2/scripts/exp4c_d_stability.py`: Cross-seed D stability analysis (Table S7.C)
+- ✨ Added manifests: `manifest_sni_v03_main.csv`, `manifest_sni_v03_ablation_lambda.csv`, `manifest_baselines_new.csv`
+- 📝 All scripts updated: imports SNI_v0_2 → SNI_v0_3, baselines expanded to 8 methods
+- 📝 `configs/datasets.yaml`: Added `class_weights` and `recommended_cat_balance_mode` per dataset
+- 📝 `exp1`: Added continuous proxy injection support (`--leak-noise-std`)
+- 📝 `exp3`: Added `--sni-cat-balance-modes` for balanced mode comparison
+- 📝 `exp4`: Added auto-discussion generation for ρ(D, SHAP) differences
 
 ### 2026-02-10
 - ✨ Added `ext2/`: Additional experiments for paper placeholders

@@ -15,10 +15,21 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from SNI_v0_2 import SNIImputer
-from SNI_v0_2.dataio import cast_dataframe_to_schema, load_complete_and_missing
-from SNI_v0_2.imputer import SNIConfig
-from SNI_v0_2.metrics import evaluate_imputation
+
+def _import_sni(version: str):
+    """Conditionally import SNI based on version string."""
+    if version == "v0.3":
+        from SNI_v0_3 import SNIImputer
+        from SNI_v0_3.dataio import cast_dataframe_to_schema, load_complete_and_missing
+        from SNI_v0_3.imputer import SNIConfig
+        from SNI_v0_3.metrics import evaluate_imputation, augment_summary_with_imputer_stats
+    else:
+        from SNI_v0_2 import SNIImputer
+        from SNI_v0_2.dataio import cast_dataframe_to_schema, load_complete_and_missing
+        from SNI_v0_2.imputer import SNIConfig
+        from SNI_v0_2.metrics import evaluate_imputation
+        augment_summary_with_imputer_stats = None
+    return SNIImputer, SNIConfig, cast_dataframe_to_schema, load_complete_and_missing, evaluate_imputation, augment_summary_with_imputer_stats
 
 import warnings
 from sklearn.exceptions import ConvergenceWarning
@@ -163,8 +174,27 @@ def main():
     ap.add_argument("--knn-k", type=int, default=5)
     ap.add_argument("--knn-top-m", type=int, default=5)
     ap.add_argument("--knn-mode-threshold", type=float, default=0.5)
+    # v0.3 support
+    ap.add_argument("--sni-version", type=str, default="v0.2", choices=["v0.2", "v0.3"],
+                     help="SNI module version to use (v0.2 or v0.3)")
+    ap.add_argument("--cat-balance-mode", type=str, default="none",
+                     choices=["none", "inverse_freq", "sqrt_inverse_freq"],
+                     help="(v0.3) Categorical class-balance weighting mode")
+    ap.add_argument("--cat-lr-mult", type=float, default=1.0,
+                     help="(v0.3) LR multiplier for categorical head parameters")
+    ap.add_argument("--lambda-mode", type=str, default="learned",
+                     choices=["learned", "fixed"],
+                     help="(v0.3) Lambda mode: 'learned' (default) or 'fixed'")
+    ap.add_argument("--lambda-fixed-value", type=float, default=1.0,
+                     help="(v0.3) Fixed lambda value when --lambda-mode=fixed")
 
     args = ap.parse_args()
+
+    # Conditional import based on SNI version
+    sni_version = args.sni_version
+    (SNIImputer, SNIConfig, cast_dataframe_to_schema,
+     load_complete_and_missing, evaluate_imputation,
+     augment_summary_with_imputer_stats) = _import_sni(sni_version)
 
     outdir = _ensure_outdir(args.outdir)
 
@@ -189,7 +219,8 @@ def main():
     else:
         mask_df = X_missing.isna()
 
-    cfg = SNIConfig(
+    # Build SNIConfig — v0.3 adds cat_balance_mode, cat_lr_mult, lambda_mode, lambda_fixed_value
+    cfg_kwargs = dict(
         alpha0=args.alpha0,
         gamma=args.gamma,
         max_iters=args.max_iters,
@@ -208,14 +239,22 @@ def main():
         use_gpu=(args.use_gpu == "true"),
     )
 
+    # v0.3-specific config parameters
+    if sni_version == "v0.3":
+        cfg_kwargs.update(
+            cat_balance_mode=args.cat_balance_mode,
+            cat_lr_mult=args.cat_lr_mult,
+            lambda_mode=args.lambda_mode,
+            lambda_fixed_value=args.lambda_fixed_value,
+        )
+
+    cfg = SNIConfig(**cfg_kwargs)
+
     imputer = SNIImputer(categorical_vars=cat_vars, continuous_vars=cont_vars, config=cfg)
 
     t0 = time.time()
     X_imp = imputer.impute(X_missing=X_missing, X_complete=X_complete, mask_df=mask_df)
     runtime_sec = float(time.time() - t0)
-
-    # Ensure clean output dtypes (e.g., categorical Int64 instead of float64).
-    X_imp = cast_dataframe_to_schema(X_imp, schema)
 
     # Ensure clean output dtypes (e.g., categorical Int64 instead of float64).
     X_imp = cast_dataframe_to_schema(X_imp, schema)
@@ -256,6 +295,7 @@ def main():
     summary.update(
         {
             "variant": args.variant,
+            "sni_version": sni_version,
             "seed": args.seed,
             "runtime_sec": runtime_sec,
             "n_rows": int(len(X_imp)),
@@ -263,9 +303,27 @@ def main():
         }
     )
 
+    # v0.3: augment summary with convergence and lambda stats
+    if sni_version == "v0.3" and augment_summary_with_imputer_stats is not None:
+        summary = augment_summary_with_imputer_stats(summary, imputer)
+
     pd.DataFrame([summary]).to_csv(outdir / "metrics_summary.csv", index=False)
     _save_json(outdir / "metrics_summary.json", summary)
 
+    # v0.3: save convergence curve and lambda artifacts
+    if sni_version == "v0.3":
+        try:
+            imputer.save_convergence_curve(outdir / "convergence_curve.csv")
+        except Exception:
+            pass
+        try:
+            imputer.save_lambda_per_head(outdir / "lambda_per_head.csv")
+        except Exception:
+            pass
+        try:
+            imputer.save_lambda_values(outdir / "lambda_values.json")
+        except Exception:
+            pass
 
     # save per-target attention maps & lambda traces (for debugging / paper figures)
     attn_dir = outdir / "attention_maps"
@@ -304,6 +362,7 @@ def main():
         "categorical_vars": cat_vars,
         "continuous_vars": cont_vars,
         "variant": args.variant,
+        "sni_version": sni_version,
         "seed": args.seed,
         "runtime_sec": runtime_sec,
         "cfg": cfg.__dict__,

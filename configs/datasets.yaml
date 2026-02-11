@@ -11,6 +11,13 @@ default_hyperparams:
   lr: 0.0002
   epochs: 200
   batch_size: 64
+
+# v0.3-specific defaults (backward-compatible: these produce v0.2 behavior)
+default_hyperparams_v03:
+  cat_balance_mode: none         # none | inverse_freq | sqrt_inverse_freq
+  cat_lr_mult: 1.0               # learning rate multiplier for categorical heads
+  lambda_mode: learned            # learned | fixed
+  lambda_fixed_value: 1.0         # used when lambda_mode=fixed
 train_seeds:
 - 1
 - 2
@@ -45,6 +52,11 @@ datasets:
     - weight
     - acceleration
     - mpg
+    # v0.3: categorical balance settings
+    class_weights:
+      model_year: imbalanced   # 13 unique years, long tail
+      origin: moderate         # 3 classes (US/Europe/Japan), US-dominated
+    recommended_cat_balance_mode: sqrt_inverse_freq
     patterns:
       MCAR:
         '0.1': data/AutoMPG/AutoMPG_MCAR_10per.csv
@@ -73,6 +85,14 @@ datasets:
     - PctFam2Par
     - PctPopUnderPov
     - ViolentCrimesPerPop
+    # v0.3: categorical balance settings
+    class_weights:
+      IncomeLevel: moderate    # 3-4 ordinal bins
+      UrbanType: moderate      # urban/suburban/rural
+      EducationLevel: moderate # ordinal education levels
+      CrimeLevel: moderate     # ordinal crime levels
+      RegionCode: moderate     # regional codes
+    recommended_cat_balance_mode: none
     patterns:
       MCAR:
         '0.1': data/ComCri/ComCri_MCAR_10per.csv
@@ -100,6 +120,9 @@ datasets:
     - FineAggregate
     - Duration
     - 'ConcreteCS '
+    # v0.3: no categorical variables → balance mode not applicable
+    class_weights: {}
+    recommended_cat_balance_mode: none
     patterns:
       MCAR:
         '0.1': data/Concrete/Concrete_MCAR_10per.csv
@@ -138,6 +161,14 @@ datasets:
     - hemoglobin_min
     - sodium_min
     - urine_output_min
+    # v0.3: categorical balance settings
+    class_weights:
+      mechanical_ventilation_std: imbalanced   # binary, heavily skewed
+      vasopressor_use_std: imbalanced          # binary, heavily skewed
+      age_band: moderate                       # ordinal age bands
+      gender_std: balanced                     # binary, roughly balanced
+      composite_risk_score: moderate           # ordinal risk tiers
+    recommended_cat_balance_mode: inverse_freq
     patterns:
       MCAR:
         '0.1': data/eICU/eICU_MCAR_10per.csv
@@ -164,6 +195,11 @@ datasets:
     - DBP
     - HR
     - PULSE
+    # v0.3: categorical balance settings
+    class_weights:
+      SpO2: moderate            # discretized SpO2 bins
+      ALARM: imbalanced         # multi-class alarm codes, heavy class imbalance
+    recommended_cat_balance_mode: inverse_freq
     patterns:
       MCAR:
         '0.1': data/MIMIC/MIMIC_MCAR_10per.csv
@@ -194,6 +230,11 @@ datasets:
     - bmi
     - hba1c
     - metabolic_score
+    # v0.3: categorical balance settings
+    class_weights:
+      gender_std: balanced      # binary, roughly 50/50
+      age_band: moderate        # ordinal age bands
+    recommended_cat_balance_mode: none
     patterns:
       MCAR:
         '0.1': data/NHANES/NHANES_MCAR_10per.csv

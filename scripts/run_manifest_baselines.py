@@ -2,7 +2,7 @@
 """Run baseline imputers from a CSV manifest.
 
 This script mirrors :mod:`scripts/run_manifest_parallel.py`, but runs **baseline**
-methods (GAIN/KNN/MeanMode/MICE/MissForest/MIWAE) instead of SNI.
+methods (MeanMode/KNN/MICE/MissForest/GAIN/MIWAE/HyperImpute/TabCSDI) instead of SNI.
 
 Key goals
 ---------
@@ -20,12 +20,22 @@ Usage
         --n-jobs 8 \
         --skip-existing
 
+    # For HyperImpute / TabCSDI (heavier methods), consider lower parallelism:
+    python scripts/run_manifest_baselines.py \
+        --manifest data/manifest_baselines_new.csv \
+        --outdir results_baselines_new \
+        --n-jobs 1 \
+        --default-timeout 1800 \
+        --skip-existing
+
 Notes
 -----
-- Deep baselines (GAIN/MIWAE) can optionally use GPU. If you have a single GPU,
-  running many of them in parallel may cause OOM. In that case, either:
-    * set ``--n-jobs 1`` for those runs, or
-    * keep GPU off (default) and run CPU-only.
+- Deep baselines (GAIN/MIWAE/TabCSDI) can optionally use GPU. If you have a
+  single GPU, running many of them in parallel may cause OOM. In that case,
+  either set ``--n-jobs 1`` for those runs, or keep GPU off (default).
+- TabCSDI is memory-intensive during training; ``--n-jobs 1`` is recommended.
+- HyperImpute uses AutoML search internally and can be slow; the
+  ``--default-timeout`` flag (default 1800s) controls the per-run timeout.
 """
 
 from __future__ import annotations
@@ -183,6 +193,7 @@ def run_one_experiment(
     outdir_root: Path,
     *,
     default_use_gpu: bool,
+    default_timeout: int = 1800,
     skip_existing: bool,
     verbose: bool,
     show_progress: bool = False,  # New: show per-experiment progress
@@ -216,11 +227,11 @@ def run_one_experiment(
         continuous_vars = _split_vars(row.get("continuous_vars"))
 
         # Decide GPU usage.
-        # - Only GAIN/MIWAE support GPU in our wrappers.
+        # - Only GAIN/MIWAE/TabCSDI support GPU in our wrappers.
         # - A per-row 'use_gpu' value overrides the script default.
         use_gpu_row = row.get("use_gpu")
         use_gpu = _as_bool(use_gpu_row, default=default_use_gpu)
-        if method not in {"GAIN", "MIWAE"}:
+        if method not in {"GAIN", "MIWAE", "TabCSDI"}:
             use_gpu = False
 
         # Show progress: experiment started
@@ -241,6 +252,12 @@ def run_one_experiment(
 
         # Build baseline imputer.
         extra_kwargs = _collect_kwargs(row)
+
+        # Inject default timeout for HyperImpute if not specified in manifest.
+        if method == "HyperImpute":
+            if "timeout" not in extra_kwargs or pd.isna(extra_kwargs.get("timeout")):
+                extra_kwargs["timeout"] = default_timeout
+
         imputer = build_baseline_imputer(
             method,
             categorical_vars=categorical_vars,
@@ -348,6 +365,7 @@ def main():
     ap.add_argument("--row-end", type=int, default=-1, help="End row (exclusive); -1 means all")
     ap.add_argument("--skip-existing", action="store_true", help="Skip experiments with existing metrics_summary.json")
     ap.add_argument("--default-use-gpu", type=str, default="false", help="Default GPU usage (true/false) for deep baselines")
+    ap.add_argument("--default-timeout", type=int, default=1800, help="Default per-run timeout in seconds for HyperImpute (default: 1800)")
     ap.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bar")
     ap.add_argument("--verbose", action="store_true", help="Verbose logging inside per-run log")
 
@@ -372,9 +390,12 @@ def main():
 
     rows = df.to_dict(orient="records")
 
+    default_timeout = int(args.default_timeout)
+
     print(f"[INFO] Starting {len(rows)} baseline experiments with {args.n_jobs} workers")
     print(f"[INFO] Output directory: {outdir_root}")
     print(f"[INFO] Default GPU for deep baselines: {default_use_gpu}")
+    print(f"[INFO] Default timeout for HyperImpute: {default_timeout}s")
 
     t0_all = time.time()
 
@@ -393,6 +414,7 @@ def main():
                 row,
                 outdir_root,
                 default_use_gpu=default_use_gpu,
+                default_timeout=default_timeout,
                 skip_existing=args.skip_existing,
                 verbose=args.verbose,
                 show_progress=True,
@@ -407,6 +429,7 @@ def main():
                 r,
                 outdir_root,
                 default_use_gpu=default_use_gpu,
+                default_timeout=default_timeout,
                 skip_existing=args.skip_existing,
                 verbose=args.verbose,
                 show_progress=False,

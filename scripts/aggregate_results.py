@@ -46,7 +46,7 @@ def _find_metric_files(root: Path) -> List[Path]:
 
 
 _EXP_ID_RE = re.compile(
-    r"^(?P<prefix>[A-Za-z0-9]+)_(?P<dataset>[^_]+)_(?P<mech>MCAR|MAR|MNAR)_(?P<rate>\d+per)_(?P<body>.+?)(?:_s(?P<seed>\d+))?$"
+    r"^(?P<prefix>[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*)_(?P<dataset>[A-Za-z0-9]+)_(?P<mech>MCAR|MAR|MNAR)_(?P<rate>\d+per)_(?P<body>.+?)(?:_s(?P<seed>\d+))?$"
 )
 
 def _parse_exp_id(exp_id: Any) -> Dict[str, Any]:
@@ -125,8 +125,8 @@ def _numeric_columns(df: pd.DataFrame, exclude: List[str]) -> List[str]:
             continue
         if pd.api.types.is_numeric_dtype(df[c]):
             cols.append(c)
-    # Do not aggregate seeds as numbers.
-    cols = [c for c in cols if c not in {"seed", "seed_parsed"}]
+    # Do not aggregate seeds or non-metric numeric-like columns.
+    cols = [c for c in cols if c not in {"seed", "seed_parsed", "convergence_iterations"}]
     return cols
 
 
@@ -138,7 +138,7 @@ def _metric_directions(all_df: pd.DataFrame) -> Dict[str, str]:
     # Base names used by the project (see paper Table 1/2): cont_* and cat_*.
     directions: Dict[str, str] = {}
     for c in all_df.columns:
-        if c.startswith("cont_") or c.startswith("cat_") or c in {"runtime_sec"}:
+        if c.startswith("cont_") or c.startswith("cat_") or c in {"runtime_sec", "runtime_seconds"}:
             if c.endswith(("NRMSE", "MAE")):
                 directions[c] = "min"
             elif c.endswith(("R2", "Spearman", "Accuracy", "Macro-F1", "Kappa")):
@@ -146,7 +146,7 @@ def _metric_directions(all_df: pd.DataFrame) -> Dict[str, str]:
             elif c.endswith("MB"):
                 # mean bias: closer to 0 is better
                 directions[c] = "absmin"
-            elif c == "runtime_sec":
+            elif c in {"runtime_sec", "runtime_seconds"}:
                 directions[c] = "min"
     return directions
 
@@ -308,7 +308,7 @@ def main() -> None:
     # ----------------------------- ranking & wins ---------------------------- #
     directions = _metric_directions(all_df)
     if args.rank_metrics.strip().lower() == "auto":
-        rank_metrics = [m for m in ("cont_NRMSE", "cont_R2", "cont_Spearman", "cat_Macro-F1", "cat_Accuracy", "cat_Kappa", "runtime_sec") if m in all_df.columns]
+        rank_metrics = [m for m in ("cont_NRMSE", "cont_R2", "cont_Spearman", "cat_Macro-F1", "cat_Accuracy", "cat_Kappa", "runtime_sec", "runtime_seconds") if m in all_df.columns]
     else:
         rank_metrics = [m.strip() for m in args.rank_metrics.split(",") if m.strip()]
 

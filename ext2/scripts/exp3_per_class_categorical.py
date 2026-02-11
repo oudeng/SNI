@@ -205,12 +205,13 @@ def _run_sni(
     continuous_vars: list[str],
     seed: int,
     use_gpu: bool,
+    cat_balance_mode: str = "none",
 ) -> pd.DataFrame:
     """Run SNI imputation and return imputed DataFrame."""
-    from SNI_v0_2 import SNIImputer  # type: ignore
-    from SNI_v0_2.imputer import SNIConfig  # type: ignore
+    from SNI_v0_3 import SNIImputer  # type: ignore
+    from SNI_v0_3.imputer import SNIConfig  # type: ignore
 
-    cfg = SNIConfig(seed=seed, use_gpu=use_gpu)
+    cfg = SNIConfig(seed=seed, use_gpu=use_gpu, cat_balance_mode=cat_balance_mode)
     imputer = SNIImputer(
         categorical_vars=categorical_vars,
         continuous_vars=continuous_vars,
@@ -302,6 +303,13 @@ def main() -> None:
         default=None,
         help="Fully-observed driver columns for strict MAR (e.g., HR SpO2).",
     )
+    parser.add_argument(
+        "--sni-cat-balance-modes",
+        nargs="+",
+        default=["none"],
+        help="SNI v0.3 cat_balance_mode values to test. "
+             "Use 'none inverse_freq sqrt_inverse_freq' to compare all three.",
+    )
     args = parser.parse_args()
 
     use_gpu = args.use_gpu.lower() in ("true", "1", "yes")
@@ -359,11 +367,24 @@ def main() -> None:
                 mar_driver_cols=args.mar_driver_cols,
             )
 
+            # Build list of (display_name, runner) pairs.
+            # For SNI, expand with each cat_balance_mode variant.
+            run_configs: list[tuple[str, str, str]] = []  # (display_name, method_type, balance_mode)
             for method in args.methods:
-                t0 = time.time()
-                print(f"  Running {method}...", end=" ", flush=True)
-
                 if method.upper() == "SNI":
+                    for bm in args.sni_cat_balance_modes:
+                        bm = bm.strip()
+                        suffix = f"(bal={bm})" if bm != "none" else ""
+                        display = f"SNI{suffix}" if suffix else "SNI"
+                        run_configs.append((display, "SNI", bm))
+                else:
+                    run_configs.append((method, "BASELINE", "none"))
+
+            for display_name, method_type, balance_mode in run_configs:
+                t0 = time.time()
+                print(f"  Running {display_name}...", end=" ", flush=True)
+
+                if method_type == "SNI":
                     imputed = _run_sni(
                         df_missing=df_missing,
                         df_complete=df_complete[all_vars],
@@ -372,10 +393,11 @@ def main() -> None:
                         continuous_vars=args.continuous_vars,
                         seed=seed,
                         use_gpu=use_gpu,
+                        cat_balance_mode=balance_mode,
                     )
                 else:
                     imputed = _run_baseline(
-                        method_name=method,
+                        method_name=display_name,
                         df_missing=df_missing,
                         df_complete=df_complete[all_vars],
                         categorical_vars=args.categorical_vars,
@@ -383,6 +405,7 @@ def main() -> None:
                         seed=seed,
                     )
 
+                method = display_name  # use display name in output
                 elapsed = time.time() - t0
                 print(f"done ({elapsed:.1f}s)")
 

@@ -59,6 +59,74 @@ python scripts/make_latex_table.py \
 
 
 ################################################################################
+# PART 1B: SNI v0.3 EXPERIMENTS
+################################################################################
+
+#-------------------------------------------------------------------------------
+# 1B.1 SNI v0.3 Main Experiments (MCAR/MAR @ 30%, Tables 2-3 update)
+#-------------------------------------------------------------------------------
+# New v0.3 features: learnable per-head lambda, categorical balance mode,
+#                    convergence monitoring, runtime tracking
+python scripts/run_manifest_parallel.py \
+    --manifest data/manifest_sni_v03_main.csv \
+    --outdir results_sni_v03_main \
+    --n-jobs -1 \
+    --sni-version v0.3
+
+python scripts/aggregate_results.py \
+    --results-root results_sni_v03_main \
+    --outdir results_sni_v03_main/_summary
+
+python scripts/make_latex_table.py \
+    --summary-csv results_sni_v03_main/_summary/summary_agg.csv \
+    --outdir results_sni_v03_main/_tables
+
+#-------------------------------------------------------------------------------
+# 1B.2 SNI v0.3 Lambda Ablation (fixed lambda grid: 0.1, 0.5, 1.0, 2.0, 5.0)
+#-------------------------------------------------------------------------------
+python scripts/run_manifest_parallel.py \
+    --manifest data/manifest_sni_v03_ablation_lambda.csv \
+    --outdir results_sni_v03_ablation_lambda \
+    --n-jobs -1 \
+    --sni-version v0.3
+
+python scripts/aggregate_results.py \
+    --results-root results_sni_v03_ablation_lambda \
+    --outdir results_sni_v03_ablation_lambda/_summary
+
+python scripts/make_latex_table.py \
+    --summary-csv results_sni_v03_ablation_lambda/_summary/summary_agg.csv \
+    --outdir results_sni_v03_ablation_lambda/_tables
+
+#-------------------------------------------------------------------------------
+# 1B.3 Single v0.3 run with explicit new parameters
+#-------------------------------------------------------------------------------
+python scripts/run_experiment.py \
+  --input-complete data/MIMIC_complete.csv \
+  --input-missing data/MIMIC/MIMIC_MAR_30per.csv \
+  --categorical-vars SpO2 ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --variant SNI \
+  --seed 1 \
+  --sni-version v0.3 \
+  --cat-balance-mode inverse_freq \
+  --cat-lr-mult 2.0 \
+  --lambda-mode learned \
+  --lambda-fixed-value 1.0 \
+  --outdir results/test_v03_run
+
+# v0.3 new CLI parameters:
+#   --sni-version v0.2|v0.3        : Select SNI version (default: v0.2)
+#   --cat-balance-mode none|inverse_freq|sqrt_inverse_freq
+#                                   : Categorical loss reweighting (v0.3 only)
+#   --cat-lr-mult <float>          : Learning rate multiplier for categorical
+#                                     heads (v0.3 only, default: 1.0)
+#   --lambda-mode learned|fixed    : Per-head lambda mode (v0.3 only)
+#   --lambda-fixed-value <float>   : Fixed lambda value when mode=fixed
+#                                     (v0.3 only, default: 1.0)
+
+
+################################################################################
 # PART 2: BASELINE EXPERIMENTS
 ################################################################################
 
@@ -137,6 +205,29 @@ python scripts/aggregate_results.py \
 python scripts/make_latex_table.py \
     --summary-csv results_baselines_deep/_summary/summary_agg.csv \
     --outdir results_baselines_deep/_tables
+
+#-------------------------------------------------------------------------------
+# 2.4 New Baselines: HyperImpute + TabCSDI
+#-------------------------------------------------------------------------------
+# HyperImpute: AutoML-based imputation (Jarrett et al., ICML 2022)
+# TabCSDI: Score-based diffusion imputation (Zheng & Charoenphakdee, NeurIPS TRL 2022)
+# Note: HyperImpute has a 30-min default timeout per experiment
+
+python scripts/run_manifest_baselines.py \
+    --manifest data/manifest_baselines_new.csv \
+    --outdir results_baselines_new \
+    --n-jobs 4 \
+    --skip-existing \
+    --default-use-gpu true \
+    --default-timeout 1800
+
+python scripts/aggregate_results.py \
+    --results-root results_baselines_new \
+    --outdir results_baselines_new/_summary
+
+python scripts/make_latex_table.py \
+    --summary-csv results_baselines_new/_summary/summary_agg.csv \
+    --outdir results_baselines_new/_tables
 
 
 ################################################################################
@@ -232,13 +323,27 @@ python ext1/scripts/exp2_downstream_task_validation.py \
   --mechanism MAR --missing-rate 0.30 \
   --mar-driver-cols age gender_std \
   --fairness-col gender_std \
-  --imputers SNI MissForest MeanMode MICE \
+  --imputers SNI MissForest MeanMode MICE HyperImpute TabCSDI \
   --seeds 1 2 3 5 8 \
   --outdir results_ext1/downstream_nhanes \
   --sni-use-gpu false \
   --baseline-use-gpu false \
   --save-missing true \
   --save-imputed false
+
+# Continuous proxy leakage audit (v0.3: SBP_LEAK = SBP + noise)
+python ext1/scripts/exp1_audit_story_leakage.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars SpO2 ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --audit-target SBP \
+  --leak-source SBP --leak-col-name SBP_LEAK \
+  --leak-noise-std 0.5 \
+  --mechanism MAR --missing-rate 0.30 \
+  --seed 2026 \
+  --outdir results_ext1/audit_mimic_sbp \
+  --use-gpu false
 
 # Key outputs:
 #   results_ext1/downstream_nhanes/metrics_per_seed.csv
@@ -274,6 +379,21 @@ python ext2/scripts/exp3_per_class_categorical.py \
 #   results_ext2/table_S9_perclass_alarm/perclass_metrics.csv
 #   results_ext2/table_S9_perclass_alarm/perclass_summary.csv
 #   results_ext2/table_S9_perclass_alarm/collapse_flags.csv
+
+# With v0.3 balanced mode comparison (none vs inverse_freq vs sqrt_inverse_freq)
+python ext2/scripts/exp3_per_class_categorical.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE SpO2 \
+  --mechanisms MAR \
+  --missing-rate 0.30 \
+  --mar-driver-cols HR SpO2 \
+  --methods SNI \
+  --sni-cat-balance-modes none inverse_freq sqrt_inverse_freq \
+  --seeds 1 2 3 5 8 \
+  --outdir results_ext2/table_S9_perclass_balanced \
+  --use-gpu false
 
 # (Optional) eICU: per-class diagnostics for reviewer analysis
 python ext2/scripts/exp3_per_class_categorical.py \
@@ -316,6 +436,54 @@ python ext2/scripts/exp4_shap_comparison.py \
 #   results_ext2/table_S7_shap_vs_D/MIMIC/shap_importances.csv
 #   results_ext2/table_S7_shap_vs_D/MIMIC/spearman_d_vs_shap.csv
 #   results_ext2/table_S7_shap_vs_D/MIMIC/d_matrix.csv
+#   results_ext2/table_S7_shap_vs_D/MIMIC/discussion_d_vs_shap.md
+
+#-------------------------------------------------------------------------------
+# 5.2B Exp4B: D vs Attention Rollout / Flow (Table S7.B)
+#-------------------------------------------------------------------------------
+# Compares three aggregation methods: D (head-mean), Rollout (residual-aware),
+# Flow (max-head).  Based on Abnar & Zuidema (2020), adapted for single-layer
+# multi-head attention in SNI/CPFA.
+
+python ext2/scripts/exp4b_attention_rollout.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars SpO2 ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --mechanism MAR --missing-rate 0.30 \
+  --seed 2026 \
+  --targets ALARM SBP \
+  --top-k 5 \
+  --outdir results_ext2/table_S7B_rollout/MIMIC \
+  --use-gpu false
+
+# Key outputs:
+#   results_ext2/table_S7B_rollout/MIMIC/table_S7B_aggregation_comparison.csv
+#   results_ext2/table_S7B_rollout/MIMIC/spearman_aggregation.csv
+#   results_ext2/table_S7B_rollout/MIMIC/attention_per_head.csv
+
+#-------------------------------------------------------------------------------
+# 5.2C Exp4C: Cross-Seed D Stability (Table S7.C)
+#-------------------------------------------------------------------------------
+# Runs SNI with 5 different model seeds on the SAME missing pattern,
+# then computes pairwise Spearman of D rows to assess reproducibility.
+
+python ext2/scripts/exp4c_d_stability.py \
+  --input-complete data/MIMIC_complete.csv \
+  --dataset-name MIMIC \
+  --categorical-vars SpO2 ALARM \
+  --continuous-vars RESP ABP SBP DBP HR PULSE \
+  --mechanism MAR --missing-rate 0.30 \
+  --missing-seed 2026 \
+  --seeds 1 2 3 5 8 \
+  --targets ALARM SBP \
+  --outdir results_ext2/table_S7C_stability/MIMIC \
+  --use-gpu false
+
+# Key outputs:
+#   results_ext2/table_S7C_stability/MIMIC/table_S7C_d_stability.csv
+#   results_ext2/table_S7C_stability/MIMIC/pairwise_spearman.csv
+#   results_ext2/table_S7C_stability/MIMIC/d_matrices/seed*.csv
 
 #-------------------------------------------------------------------------------
 # 5.3 Exp5: Wilcoxon Significance Tests (Table S8)
@@ -328,7 +496,7 @@ python ext2/scripts/exp5_significance_tests.py \
   --mechanisms MCAR MAR \
   --metrics NRMSE R2 Spearman_rho Macro_F1 \
   --reference-method SNI \
-  --baselines MissForest MIWAE \
+  --baselines MissForest MIWAE GAIN KNN MICE MeanMode HyperImpute TabCSDI \
   --mode across_settings \
   --alpha 0.05 \
   --outdir results_ext2/significance
@@ -340,7 +508,7 @@ python ext2/scripts/exp5_significance_tests.py \
   --mechanisms MCAR MAR \
   --metrics NRMSE R2 Spearman_rho Macro_F1 \
   --reference-method SNI \
-  --baselines MissForest MIWAE \
+  --baselines MissForest MIWAE GAIN KNN MICE MeanMode HyperImpute TabCSDI \
   --mode both \
   --alpha 0.05 \
   --outdir results_ext2/significance
@@ -363,7 +531,7 @@ python ext2/scripts/exp6_mimic_mortality_impute_predict.py \
   --continuous-vars RESP ABP SBP DBP HR PULSE \
   --mechanism MAR --missing-rate 0.30 \
   --mar-driver-cols HR PULSE \
-  --imputers SNI MissForest MeanMode \
+  --imputers SNI MissForest MeanMode HyperImpute TabCSDI \
   --models LR XGB \
   --seeds 1 2 3 5 8 \
   --outdir results_ext2/table_VI_mimic_alarm \
@@ -465,17 +633,22 @@ python scripts/aggregate_results.py \
 #
 # Experiment              | Manifest / Script               | Est. Time | n-jobs
 # ------------------------|---------------------------------|-----------|--------
-# SNI Main                | manifest_sni_main.csv           | 1-2h      | -1
+# SNI Main (v0.2)         | manifest_sni_main.csv           | 1-2h      | -1
+# SNI v0.3 Main           | manifest_sni_v03_main.csv       | 1-2h      | -1
+# SNI v0.3 Lambda Ablation| manifest_sni_v03_ablation_lam.. | 1-2h      | -1
 # SNI Ablation            | manifest_sni_ablation.csv       | 2-3h      | -1
 # SNI MNAR                | manifest_sni_mnar.csv           | 3-4h      | -1
 # Baselines Main          | manifest_baselines_main.csv     | 4-6h      | -1
 # Baselines MNAR          | manifest_baselines_mnar.csv     | 6-8h      | -1
 # Baselines Deep (GPU)    | manifest_baselines_deep.csv     | 8-12h     | 1
+# Baselines New (HI+CSDI) | manifest_baselines_new.csv      | 6-10h     | 4
 # Sanity Check            | (synthetic)                     | 1-2h      | N/A
 # Ext1 Audit Story        | exp1_audit_story_leakage.py     | <30min    | N/A
 # Ext1 Downstream         | exp2_downstream_task_validation | <1h       | N/A
 # Ext2 Per-class (S9)     | exp3_per_class_categorical.py   | <30min    | N/A
 # Ext2 SHAP vs D (S7)     | exp4_shap_comparison.py         | <30min    | N/A
+# Ext2 Rollout/Flow(S7.B) | exp4b_attention_rollout.py      | <30min    | N/A
+# Ext2 D Stability (S7.C) | exp4c_d_stability.py            | <2h       | N/A
 # Ext2 Wilcoxon (S8)      | exp5_significance_tests.py      | <5min     | N/A
 # Ext2 Impute→Predict(VI) | exp6_mimic_mortality_impute_pre | <1h       | N/A
 #

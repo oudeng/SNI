@@ -24,7 +24,7 @@ def _metric_direction(metric: str) -> str:
         return "max"
     if metric.endswith("MB"):
         return "absmin"
-    if metric == "runtime_sec":
+    if metric in {"runtime_sec", "runtime_seconds"}:
         return "min"
     return "min"
 

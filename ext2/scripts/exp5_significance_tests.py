@@ -168,7 +168,7 @@ def _discover_unified_table(results_dir: Path) -> Optional[pd.DataFrame]:
 
 
 _EXP_ID_RE = re.compile(
-    r"^[A-Z]+_(.+?)_(MCAR|MAR|MNAR)_(\d+)per_(.+?)_s(\d+)$"
+    r"^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_(.+?)_(MCAR|MAR|MNAR)_(\d+)per_(.+?)_s(\d+)$"
 )
 
 
@@ -215,6 +215,7 @@ def _load_baseline_summaries(project_root: Path, mechanisms: List[str]) -> List[
         "results_baselines_main_all",    # MCAR, MAR (extended)
         "results_baselines_mnar",        # MNAR
         "results_baselines_deep",        # deep methods (MIWAE, GAIN, etc.)
+        "results_baselines_new",         # HyperImpute, TabCSDI
     ]
     for pattern in dir_patterns:
         d = project_root / pattern
@@ -264,8 +265,9 @@ def _load_sni_results(project_root: Path, mechanisms: List[str]) -> List[pd.Data
     """Load SNI per-experiment metrics_summary.csv files."""
     frames: List[pd.DataFrame] = []
     sni_dirs = [
-        "results_sni_main",    # MCAR, MAR
-        "results_sni_mnar",    # MNAR
+        "results_sni_main",        # v0.2 MCAR, MAR
+        "results_sni_mnar",        # v0.2 MNAR
+        "results_sni_v03_main",    # v0.3 MCAR, MAR
     ]
     mech_upper = {m.upper() for m in mechanisms}
 
@@ -464,7 +466,7 @@ def main() -> None:
     parser.add_argument("--mechanisms", nargs="+", default=["MCAR", "MAR"])
     parser.add_argument("--metrics", nargs="+", default=["NRMSE", "R2", "Spearman_rho", "Macro_F1"])
     parser.add_argument("--reference-method", default="SNI")
-    parser.add_argument("--baselines", nargs="+", default=["MissForest", "MIWAE", "GAIN", "KNN", "MICE", "MeanMode"])
+    parser.add_argument("--baselines", nargs="+", default=["MissForest", "MIWAE", "GAIN", "KNN", "MICE", "MeanMode", "HyperImpute", "TabCSDI"])
     parser.add_argument("--mode", default="across_settings", choices=["across_settings", "per_setting", "both"])
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument("--outdir", default="results_ext2/significance")

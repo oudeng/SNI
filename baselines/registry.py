@@ -25,6 +25,8 @@ from .MeanMode_v1 import MeanModeImputer
 from .MICE_v3 import MICEImputer
 from .MissForest_v2 import MissForestImputer
 from .MIWAE_v3 import MIWAEImputer
+from .HyperImpute_v1 import HyperImputeImputer
+from .TabCSDI_v1 import TabCSDIImputer
 
 
 def _filter_kwargs(kwargs: Dict[str, Any], allowed: List[str]) -> Dict[str, Any]:
@@ -251,6 +253,85 @@ class MIWAEBaseline(BaseBaseline):
         return X_imp
 
 
+@dataclass
+class HyperImputeBaseline(BaseBaseline):
+    """
+    HyperImpute v1 - AutoML-based iterative imputation
+
+    Reference: Jarrett et al. (2022), ICML
+    Package: https://github.com/vanderschaarlab/hyperimpute
+    """
+    categorical_vars: List[str]
+    continuous_vars: List[str]
+    seed: int = 42
+    timeout: int = 600
+    optimizer: str = "hyperband"
+
+    def __post_init__(self):
+        self.method = "HyperImpute"
+        self._impl = HyperImputeImputer(
+            categorical_vars=self.categorical_vars,
+            continuous_vars=self.continuous_vars,
+            seed=int(self.seed),
+            timeout=int(self.timeout),
+            optimizer=str(self.optimizer),
+        )
+
+    def impute(self, X_complete: pd.DataFrame, X_missing: pd.DataFrame) -> pd.DataFrame:
+        Xc, Xm = set_categories_from_complete(X_complete, X_missing, self.categorical_vars)
+        X_imp, _ = self._impl.impute(Xc, Xm)
+        X_imp = fallback_fillna(X_imp, X_complete, self.categorical_vars, self.continuous_vars)
+        return X_imp
+
+
+@dataclass
+class TabCSDIBaseline(BaseBaseline):
+    """
+    TabCSDI v1 - Conditional Score-based Diffusion for tabular imputation
+
+    Reference: Tashiro et al. (2021), NeurIPS (CSDI)
+               Zheng & Charoenphakdee (2022), NeurIPS Workshop (TabCSDI)
+    """
+    categorical_vars: List[str]
+    continuous_vars: List[str]
+    seed: int = 42
+    use_gpu: bool = False
+    # Diffusion
+    diffusion_steps: int = 50
+    n_samples: int = 10
+    # Architecture
+    d_model: int = 128
+    n_heads: int = 4
+    n_layers: int = 3
+    # Training
+    epochs: int = 200
+    batch_size: int = 64
+    lr: float = 1e-3
+
+    def __post_init__(self):
+        self.method = "TabCSDI"
+        self._impl = TabCSDIImputer(
+            categorical_vars=self.categorical_vars,
+            continuous_vars=self.continuous_vars,
+            seed=int(self.seed),
+            use_gpu=bool(self.use_gpu),
+            diffusion_steps=int(self.diffusion_steps),
+            n_samples=int(self.n_samples),
+            d_model=int(self.d_model),
+            n_heads=int(self.n_heads),
+            n_layers=int(self.n_layers),
+            epochs=int(self.epochs),
+            batch_size=int(self.batch_size),
+            lr=float(self.lr),
+        )
+
+    def impute(self, X_complete: pd.DataFrame, X_missing: pd.DataFrame) -> pd.DataFrame:
+        Xc, Xm = set_categories_from_complete(X_complete, X_missing, self.categorical_vars)
+        X_imp, _ = self._impl.impute(Xc, Xm)
+        X_imp = fallback_fillna(X_imp, X_complete, self.categorical_vars, self.continuous_vars)
+        return X_imp
+
+
 _REGISTRY = {
     "MeanMode": MeanModeBaseline,
     "KNN": KNNBaseline,
@@ -258,6 +339,8 @@ _REGISTRY = {
     "MissForest": MissForestBaseline,
     "GAIN": GAINBaseline,
     "MIWAE": MIWAEBaseline,
+    "HyperImpute": HyperImputeBaseline,
+    "TabCSDI": TabCSDIBaseline,
 }
 
 
@@ -295,17 +378,22 @@ def build_baseline_imputer(
         allowed = ["hidden_dim", "batch_size", "hint_rate", "alpha", "iterations", "learning_rate"]
     elif m == "MIWAE":
         # v3 parameters
-        allowed = ["hidden_dims", "latent_dim", "num_iw_samples", "num_impute_samples", 
+        allowed = ["hidden_dims", "latent_dim", "num_iw_samples", "num_impute_samples",
                    "lr", "batch_size", "epochs", "min_epochs", "min_variance"]
+    elif m == "HyperImpute":
+        allowed = ["timeout", "optimizer"]
+    elif m == "TabCSDI":
+        allowed = ["diffusion_steps", "n_samples", "d_model", "n_heads", "n_layers",
+                   "epochs", "batch_size", "lr"]
     else:
         allowed = []
 
     filtered = _filter_kwargs(kwargs, allowed)
 
     # Baselines that accept seed/use_gpu
-    if m in {"MICE", "MissForest", "GAIN", "MIWAE"}:
+    if m in {"MICE", "MissForest", "GAIN", "MIWAE", "HyperImpute", "TabCSDI"}:
         filtered.update({"seed": int(seed)})
-    if m in {"GAIN", "MIWAE"}:
+    if m in {"GAIN", "MIWAE", "TabCSDI"}:
         filtered.update({"use_gpu": bool(use_gpu)})
 
     return cls(categorical_vars=categorical_vars, continuous_vars=continuous_vars, **filtered)

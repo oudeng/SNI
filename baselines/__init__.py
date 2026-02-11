@@ -8,6 +8,8 @@ This package contains baseline imputation engines used in the paper:
 - MissForest
 - GAIN
 - MIWAE
+- HyperImpute
+- TabCSDI
 
 Each baseline is wrapped with a consistent interface:
 

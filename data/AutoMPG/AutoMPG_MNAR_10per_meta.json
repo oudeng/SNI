@@ -1,0 +1,52 @@
+{
+  "dataset_name": "AutoMPG",
+  "mechanism": "MNAR",
+  "target_rate": 0.1,
+  "actual_rate_eligible": 0.09566326530612244,
+  "actual_rate_all": 0.08503401360544217,
+  "seed": 2025,
+  "n_rows": 392,
+  "n_cols": 9,
+  "columns": [
+    "ID",
+    "cylinders",
+    "displacement",
+    "horsepower",
+    "weight",
+    "acceleration",
+    "model_year",
+    "origin",
+    "mpg"
+  ],
+  "column_types": {
+    "continuous": [
+      "cylinders",
+      "displacement",
+      "horsepower",
+      "weight",
+      "acceleration",
+      "mpg"
+    ],
+    "categorical": [
+      "model_year",
+      "origin"
+    ],
+    "excluded": [
+      "ID"
+    ]
+  },
+  "tolerance": 0.01,
+  "min_missing_per_col": 1,
+  "mnar_params": {},
+  "per_column_missing_rate": {
+    "ID": 0.0,
+    "cylinders": 0.0663265306122449,
+    "displacement": 0.09438775510204081,
+    "horsepower": 0.11989795918367346,
+    "weight": 0.08418367346938775,
+    "acceleration": 0.09693877551020408,
+    "model_year": 0.10459183673469388,
+    "origin": 0.10204081632653061,
+    "mpg": 0.09693877551020408
+  }
+}

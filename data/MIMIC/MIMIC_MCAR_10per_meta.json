@@ -1,0 +1,51 @@
+{
+  "dataset_name": "MIMIC",
+  "mechanism": "MCAR",
+  "target_rate": 0.1,
+  "actual_rate_eligible": 0.09734405458089669,
+  "actual_rate_all": 0.08652804851635261,
+  "seed": 2025,
+  "n_rows": 2052,
+  "n_cols": 9,
+  "columns": [
+    "ID",
+    "RESP",
+    "ABP",
+    "SBP",
+    "DBP",
+    "SpO2",
+    "HR",
+    "PULSE",
+    "ALARM"
+  ],
+  "column_types": {
+    "continuous": [
+      "RESP",
+      "ABP",
+      "SBP",
+      "DBP",
+      "HR",
+      "PULSE"
+    ],
+    "categorical": [
+      "SpO2",
+      "ALARM"
+    ],
+    "excluded": [
+      "ID"
+    ]
+  },
+  "tolerance": 0.01,
+  "min_missing_per_col": 1,
+  "per_column_missing_rate": {
+    "ID": 0.0,
+    "RESP": 0.10769980506822611,
+    "ABP": 0.09454191033138401,
+    "SBP": 0.09941520467836257,
+    "DBP": 0.09161793372319688,
+    "SpO2": 0.0891812865497076,
+    "HR": 0.0891812865497076,
+    "PULSE": 0.1101364522417154,
+    "ALARM": 0.09697855750487329
+  }
+}

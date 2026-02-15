@@ -1,0 +1,54 @@
+{
+  "dataset_name": "Concrete",
+  "mechanism": "MCAR",
+  "target_rate": 0.1,
+  "actual_rate_eligible": 0.09514563106796116,
+  "actual_rate_all": 0.08563106796116506,
+  "seed": 2025,
+  "n_rows": 1030,
+  "n_cols": 10,
+  "columns": [
+    "ID",
+    "Cement",
+    "BlastFurnaceSlag",
+    "FlyAsh",
+    "Water",
+    "Superplasticizer",
+    "CoarseAggregate",
+    "FineAggregate",
+    "Duration",
+    "ConcreteCS"
+  ],
+  "column_types": {
+    "continuous": [
+      "Cement",
+      "BlastFurnaceSlag",
+      "FlyAsh",
+      "Water",
+      "Superplasticizer",
+      "CoarseAggregate",
+      "FineAggregate",
+      "ConcreteCS"
+    ],
+    "categorical": [
+      "Duration"
+    ],
+    "excluded": [
+      "ID"
+    ]
+  },
+  "tolerance": 0.01,
+  "min_missing_per_col": 1,
+  "per_column_missing_rate": {
+    "ID": 0.0,
+    "Cement": 0.10582524271844661,
+    "BlastFurnaceSlag": 0.0883495145631068,
+    "FlyAsh": 0.09514563106796116,
+    "Water": 0.09514563106796116,
+    "Superplasticizer": 0.09611650485436893,
+    "CoarseAggregate": 0.09029126213592233,
+    "FineAggregate": 0.09902912621359224,
+    "Duration": 0.09902912621359224,
+    "ConcreteCS": 0.08737864077669903
+  }
+}

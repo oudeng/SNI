@@ -1,0 +1,3 @@
+# Full installation (core + extra)
+-r requirements_core.txt
+-r requirements_extra.txt

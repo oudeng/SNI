@@ -1,0 +1,5 @@
+# Extra dependencies for supplementary experiments and modern baselines
+seaborn>=0.11
+shap>=0.41.0
+xgboost>=1.5
+hyperimpute>=0.1.0

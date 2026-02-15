@@ -1,0 +1,42 @@
+# Paper result profiles
+# Usage: --profile configs/paper_profiles.yaml:main
+
+main:
+  description: "Main paper figures & tables (Table I-V, Fig.3-6)"
+  include_algos:
+    - MeanMode
+    - KNN
+    - MICE
+    - MissForest
+    - GAIN
+    - MIWAE
+    - SNI
+  datasets: [MIMIC, eICU, NHANES, ComCri, AutoMPG, Concrete]
+  mechanisms: [MCAR, MAR]
+  rates: [10, 30, 50]
+  output_prefix: "main"
+
+supplement:
+  description: "Supplementary materials (includes modern baselines)"
+  include_algos:
+    - MeanMode
+    - KNN
+    - MICE
+    - MissForest
+    - GAIN
+    - MIWAE
+    - HyperImpute
+    - TabCSDI
+    - SNI
+  datasets: [MIMIC, eICU, NHANES, ComCri, AutoMPG, Concrete]
+  mechanisms: [MCAR, MAR, MNAR]
+  rates: [10, 30, 50]
+  output_prefix: "supp"
+
+all:
+  description: "Full results (internal use)"
+  include_algos: null
+  datasets: null
+  mechanisms: null
+  rates: null
+  output_prefix: "all"
